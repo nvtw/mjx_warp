@@ -1,9 +1,47 @@
 import warp as wp
+import numpy as np
+
 
 class vec10f(wp.types.vector(length=10, dtype=wp.float32)):
     pass
 
 vec10 = vec10f
+
+
+
+@wp.struct
+class Contact:
+    """Result of collision detection functions.
+
+    Attributes:
+        dist: distance between nearest points; neg: penetration
+        pos: position of contact point: midpoint between geoms (3,)
+        frame: normal is in [0-2] (9,)
+        includemargin: include if dist<includemargin=margin-gap (1,)
+        friction: tangent1, 2, spin, roll1, 2 (5,)
+        solref: constraint solver reference, normal direction (mjNREF,)
+        solreffriction: constraint solver reference, friction directions (mjNREF,)
+        solimp: constraint solver impedance (mjNIMP,)
+        dim: contact space dimensionality: 1, 3, 4, or 6
+        geom1: id of geom 1; deprecated, use geom[0]
+        geom2: id of geom 2; deprecated, use geom[1]
+        geom: geom ids (2,)
+        efc_address: address in efc; -1: not included
+    """
+
+    dist: wp.array(dtype=wp.float32, ndim=1)
+    pos: wp.array(dtype=wp.vec3, ndim=1)
+    frame: wp.array(dtype=wp.mat33, ndim=1)
+    includemargin: wp.array(dtype=wp.float32, ndim=1)
+    friction: wp.array(dtype=wp.float32, ndim=2)  # (n_points, 5)
+    solref: wp.array(dtype=wp.float32, ndim=2)  # (n_points, mjNREF)
+    solreffriction: wp.array(dtype=wp.float32, ndim=2)  # (n_points, mjNREF)
+    solimp: wp.array(dtype=wp.float32, ndim=2)  # (n_points, mjNIMP)
+    dim: wp.array(dtype=wp.int32, ndim=1)
+    geom1: wp.array(dtype=wp.int32, ndim=1)
+    geom2: wp.array(dtype=wp.int32, ndim=1)
+    efc_address: wp.array(dtype=wp.int32, ndim=1)
+
 
 @wp.struct
 class Model:
@@ -48,6 +86,19 @@ class Model:
   dof_Madr: wp.array(dtype=wp.int32, ndim=1)
   dof_armature: wp.array(dtype=wp.float32, ndim=1)
 
+  #https://mujoco.readthedocs.io/en/3.1.3/APIreference/APItypes.html
+  geom_size: wp.array(dtype=wp.vec3, ndim=1)
+  geom_dataid: wp.array(dtype=wp.int32, ndim=1)
+  npair : int
+  geom_contype: wp.array(dtype=wp.int32, ndim=1)
+  geom_conaffinity: wp.array(dtype=wp.int32, ndim=1)
+  body_geomadr : wp.array(dtype=wp.int32, ndim=1)
+  body_geomnum : wp.array(dtype=wp.int32, ndim=1)
+  exclude_signature : wp.array(dtype=wp.int32, ndim=1)
+  opt_disableflags : int
+  body_weldid : wp.array(dtype=wp.int32, ndim=1)
+  body_parentid : wp.array(dtype=wp.int32, ndim=1)
+  mesh_convex : wp.array(dtype=wp.int32, ndim=1)
 
 @wp.struct
 class Data:
@@ -73,3 +124,7 @@ class Data:
   qM: wp.array(dtype=wp.float32, ndim=2)
   qLD: wp.array(dtype=wp.float32, ndim=2)
   qLDiagInv: wp.array(dtype=wp.float32, ndim=2)
+
+  #contact: wp.array(dtype=Contact, ndim=2)
+  contact_pos: wp.array(dtype=wp.vec3, ndim=2)
+

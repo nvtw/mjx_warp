@@ -75,6 +75,24 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.dof_Madr = wp.array(mjm.dof_Madr, dtype=wp.int32, ndim=1)
   m.dof_armature = wp.array(mjm.dof_armature, dtype=wp.float32, ndim=1)
 
+  #print(dir(mjm))
+  #print(mjm.geom_size)
+  #print(type(mjm.geom_size))
+
+  # https://mujoco.readthedocs.io/en/3.1.3/APIreference/APItypes.html
+  m.geom_size = wp.array(mjm.geom_size, dtype=wp.vec3, ndim=1)
+  m.geom_dataid = wp.array(mjm.geom_dataid, dtype=wp.int32, ndim=1)
+  m.npair = mjm.npair
+  m.geom_contype = wp.array(mjm.geom_contype, dtype=wp.int32, ndim=1)
+  m.geom_conaffinity = wp.array(mjm.geom_conaffinity, dtype=wp.int32, ndim=1)
+  m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
+  m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
+  m.exclude_signature = wp.array(mjm.exclude_signature, dtype=wp.int32, ndim=1)
+  m.opt_disableflags = mjm.opt.disableflags
+  m.body_weldid = wp.array(mjm.body_weldid, dtype=wp.int32, ndim=1)
+  m.body_parentid = wp.array(mjm.body_parentid, dtype=wp.int32, ndim=1)
+  m.mesh_convex = wp.array(mjm.mesh_convex, dtype=wp.int32, ndim=1)
+
   return m
 
 
@@ -105,6 +123,7 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d.qLD = wp.zeros((nworld, mjm.nM), dtype=wp.float32)
   d.qLDiagInv = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
 
+  d.contact_pos = wp.zeros((nworld, 100), dtype=wp.vec3)
   return d
 
 
@@ -136,5 +155,7 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
   d.qM = wp.array(tile_fn(mjd.qM), dtype=wp.float32, ndim=2)
   d.qLD = wp.array(tile_fn(mjd.qLD), dtype=wp.float32, ndim=2)
   d.qLDiagInv = wp.array(tile_fn(mjd.qLDiagInv), dtype=wp.float32, ndim=2)
+
+  d.contact_pos = wp.array(tile_fn(mjd.contact_pos), dtype=wp.vec3, ndim=2)
 
   return d

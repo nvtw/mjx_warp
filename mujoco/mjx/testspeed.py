@@ -49,6 +49,32 @@ def _main(argv: Sequence[str]):
   """Runs testpeed function."""
   wp.init()
 
+
+  path = epath.resource_path("mujoco.mjx") / "test_data"
+  path = _BASE_PATH.value or path
+  f = epath.Path(path) / _MJCF.value
+  if f.suffix == ".mjb":
+    m = mujoco.MjModel.from_binary_path(f.as_posix())
+  else:
+    m = mujoco.MjModel.from_xml_path(f.as_posix())
+
+  fn =  mjx.collision
+
+  jit_time, run_time, steps = mjx.benchmark(
+    fn,
+    m,
+    _NSTEP.value,
+    _BATCH_SIZE.value,
+    _UNROLL.value,
+    _SOLVER.value,
+    _ITERATIONS.value,
+    _LS_ITERATIONS.value,
+  )
+  return
+
+
+
+
   path = epath.resource_path("mujoco.mjx") / "test_data"
   path = _BASE_PATH.value or path
   f = epath.Path(path) / _MJCF.value
