@@ -580,6 +580,7 @@ def _geom_pairs(
     """Yields geom pairs to check for collision."""
     geom_contype = m.geom_contype.numpy()
     geom_conaffinity = m.geom_conaffinity.numpy()
+    geom_type = m.geom_type.numpy()
     geom_con = geom_contype | geom_conaffinity
     b_start = m.body_geomadr.numpy()
     b_end = b_start + m.body_geomnum.numpy()
