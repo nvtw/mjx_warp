@@ -98,15 +98,16 @@ class GeomType_CONVEX:
 def get_info(t):
     @wp.func
     def _get_info(
+        env_id: int,
         gid: int,
         dataid: int,
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
         size: wp.vec3,
         convex_vert_offset: wp.array(dtype=int),
     ):
-        pos = geom_xpos[gid]
-        rot = geom_xmat[gid]
+        pos = geom_xpos[env_id, gid]
+        rot = geom_xmat[env_id, gid]
         if wp.static(t == mjxGEOM_SPHERE):
             sphere = GeomType_SPHERE()
             sphere.pos = pos
@@ -395,8 +396,8 @@ def gjk_epa_pipeline(
         g1: int,
         g2: int,
         ngeom: int,
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim = 2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim = 2),
         geom_size: wp.array(dtype=wp.vec3),
         geom_dataid: wp.array(dtype=wp.int32),
         convex_vert: wp.array(dtype=wp.vec3),
@@ -409,10 +410,10 @@ def gjk_epa_pipeline(
             dataid2 = geom_dataid[g2]
         size1 = geom_size[model_id * ngeom + g1]
         size2 = geom_size[model_id * ngeom + g2]
-        gid1 = env_id * ngeom + g1
-        gid2 = env_id * ngeom + g2
-        info1 = wp.static(get_info(type1))(gid1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
-        info2 = wp.static(get_info(type2))(gid2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
+        #gid1 = env_id * ngeom + g1
+        #gid2 = env_id * ngeom + g2
+        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
+        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
 
         dir = wp.vec3(0.0, 0.0, 1.0)
         dir_n = -dir
@@ -572,8 +573,8 @@ def gjk_epa_pipeline(
         g1: int,
         g2: int,
         ngeom: int,
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
         geom_size: wp.array(dtype=wp.vec3),
         geom_dataid: wp.array(dtype=wp.int32),
         convex_vert: wp.array(dtype=wp.vec3),
@@ -591,10 +592,10 @@ def gjk_epa_pipeline(
 
         size1 = geom_size[model_id * ngeom + g1]
         size2 = geom_size[model_id * ngeom + g2]
-        tg1 = env_id * ngeom + g1
-        tg2 = env_id * ngeom + g2
-        info1 = wp.static(get_info(type1))(tg1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
-        info2 = wp.static(get_info(type2))(tg2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
+        #tg1 = env_id * ngeom + g1
+        #tg2 = env_id * ngeom + g2
+        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
+        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
 
         normal = input_normal
 
@@ -744,8 +745,8 @@ def gjk_epa_pipeline(
         nmodel: int,
         ncon: int,
         geom_pair: wp.array(dtype=int, ndim=2),
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
         geom_size: wp.array(dtype=wp.vec3),
         geom_dataid: wp.array(dtype=wp.int32),
         convex_vert: wp.array(dtype=wp.vec3),
@@ -810,8 +811,8 @@ def gjk_epa_pipeline(
         g1: int,
         g2: int,
         ngeom: int,
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
         geom_size: wp.array(dtype=wp.vec3),
         geom_dataid: wp.array(dtype=wp.int32),
         convex_vert: wp.array(dtype=wp.vec3),
@@ -843,10 +844,10 @@ def gjk_epa_pipeline(
             dataid2 = -1
         size1 = geom_size[model_id * ngeom + g1]
         size2 = geom_size[model_id * ngeom + g2]
-        gid1 = env_id * ngeom + g1
-        gid2 = env_id * ngeom + g2
-        info1 = wp.static(get_info(type1))(gid1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
-        info2 = wp.static(get_info(type2))(gid2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
+        #gid1 = env_id * ngeom + g1
+        #gid2 = env_id * ngeom + g2
+        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
+        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
 
         if depth < -depth_extension:
             return
@@ -1092,8 +1093,8 @@ def gjk_epa_pipeline(
         nmodel: int,
         ncon: int,
         geom_pair: wp.array(dtype=int, ndim=2),
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
         geom_size: wp.array(dtype=wp.vec3),
         geom_dataid: wp.array(dtype=wp.int32),
         convex_vert: wp.array(dtype=wp.vec3),
@@ -1156,8 +1157,8 @@ def gjk_epa_pipeline(
         type_pair_geom_id: wp.array(dtype=int, ndim=2),
         type_pair_count: wp.array(dtype=int),
         type_pair_offset: wp.array(dtype=int),
-        geom_xpos: wp.array(dtype=wp.vec3),
-        geom_xmat: wp.array(dtype=wp.mat33),
+        geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+        geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
         geom_size: wp.array(dtype=wp.vec3),
         geom_dataid: wp.array(dtype=wp.int32),
         convex_vert: wp.array(dtype=wp.vec3),
@@ -1273,8 +1274,8 @@ def gjk_epa_pipeline(
 
 def gjk_epa_dense(
     geom_pair: wp.array(dtype=int, ndim=2),
-    geom_xpos: wp.array(dtype=wp.vec3),
-    geom_xmat: wp.array(dtype=wp.mat33),
+    geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+    geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
     geom_size: wp.array(dtype=wp.vec3),
     geom_dataid: wp.array(dtype=wp.int32),
     convex_vert: wp.array(dtype=wp.vec3),
