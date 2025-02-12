@@ -7,7 +7,7 @@ import mujoco
 
 import numpy as np
 
-from .narrowphase import mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size, where
+from .narrowphase import mjxGEOM_PLANE, mjxGEOM_size, where, _narrowphase
 #from narrowphase import gjk_epa_dense
 #from narrowphase import _narrowphase, where, mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size
 
@@ -89,7 +89,7 @@ def get_dyn_body_aamm(
     body_geomnum: wp.array(dtype=int),
     body_geomadr: wp.array(dtype=int),
     geom_margin: wp.array(dtype=float),
-    geom_xpos: wp.array(dtype=wp.vec3),
+    geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
     geom_rbound: wp.array(dtype=float),
     dyn_body_aamm: wp.array(dtype=float, ndim=2),
 ):
@@ -109,8 +109,8 @@ def get_dyn_body_aamm(
     for i in range(body_geomnum[bid]):
         g = body_geomadr[bid] + i
 
-        for j in range(3):
-            pos = geom_xpos[(env_id * ngeom + g)][j]
+        for j in range(3): # Loop over xyz components
+            pos = geom_xpos[env_id, g][j]
             rbound = geom_rbound[model_id * ngeom + g]
             margin = geom_margin[model_id * ngeom + g]
 
@@ -236,10 +236,10 @@ class Mat3x4:
 #                           pos.z)
 #     return result
 @wp.func
-def xposmat_to_float4(xpos: wp.array(dtype=wp.vec3), xmat: wp.array(dtype=wp.mat33), gi: int) -> Mat3x4:
+def xposmat_to_float4(xpos: wp.array(dtype=wp.vec3, ndim=2), xmat: wp.array(dtype=wp.mat33, ndim=2), env_id: int, gi: int) -> Mat3x4:
     result = Mat3x4()
-    pos = xpos[gi]
-    mat = xmat[gi]
+    pos = xpos[env_id, gi]
+    mat = xmat[env_id, gi]
 
     result.row0 = wp.vec4(mat[0][0], mat[0][1], mat[0][2], pos.x)
     result.row1 = wp.vec4(mat[1][0], mat[1][1], mat[1][2], pos.y)
@@ -264,8 +264,8 @@ def get_dyn_geom_aabb(
     nenv: int,
     nmodel: int,
     ngeom: int,
-    geom_xpos: wp.array(dtype=wp.vec3),
-    geom_xmat: wp.array(dtype=wp.mat33),
+    geom_xpos: wp.array(dtype=wp.vec3, ndim = 2),
+    geom_xmat: wp.array(dtype=wp.mat33, ndim = 2),
     geom_aabb: wp.array(dtype=float, ndim=2),
     # outputs
     dyn_aabb: wp.array(dtype=float, ndim=2),
@@ -277,7 +277,7 @@ def get_dyn_geom_aabb(
     env_id = tid // ngeom
     gid = tid % ngeom
 
-    mat = xposmat_to_float4(geom_xpos, geom_xmat, env_id * ngeom + gid)
+    mat = xposmat_to_float4(geom_xpos, geom_xmat, env_id, gid)
 
     aabb = wp.vec3(geom_aabb[gid, 3], geom_aabb[gid, 4], geom_aabb[gid, 5])
     aabb_pos = wp.vec3(geom_aabb[gid, 0], geom_aabb[gid, 1], geom_aabb[gid, 2])
@@ -883,7 +883,7 @@ def make_frame(
 
 def _narrowphase2(s, input, output, t1, t2):
   
-    narrowphase._narrowphase(
+    _narrowphase(
         t1,
         t2,
         input.gjk_iteration_count,
@@ -927,7 +927,7 @@ def narrowphase(s, input, output):
         output (CollisionOutput): Output collision data.
     """
 
-    for t2 in range(narrowphase.mjxGEOM_size):
+    for t2 in range(mjxGEOM_size):
         for t1 in range(t2 + 1):
             _narrowphase2(s, input, output, t1, t2)
 
@@ -1229,8 +1229,8 @@ def collision2(
         # d.geom_xpos = d.geom_xpos.reshape(nenv * ngeom, 3)
         # d.geom_xmat = d.geom_xmat.reshape(nenv * ngeom, 3, 3)
         # d.geom_size = d.geom_size.reshape(nenv * ngeom)
-        assert d.contact.pos.shape[0] == nenv
-        max_contact_points = nenv * d.contact.pos.shape[1]
+        assert d.c.pos.shape[0] == nenv
+        max_contact_points = nenv * d.c.pos.shape[1]
     else:
         if len(d.geom_xpos.shape) != 2:
             raise ValueError(f'd.geom_xpos should have 2d shape, got "{d.geom_xpos.shape}".')
@@ -1299,20 +1299,19 @@ def collision2(
         # Synchronize to ensure the kernel has completed
         wp.synchronize()
 
-        c = types.Contact(
-            dist=output.dist,
-            pos=output.pos,
-            frame=frame,
-            includemargin=output.includemargin,
-            friction=output.friction,
-            solref=output.solref,
-            solreffriction=output.solreffriction,
-            solimp=output.solimp,
-            geom1=output.g1,
-            geom2=output.g2,
-            # geom=jp.array([output.g1, output.g2]).T,  # Uncomment if needed
-            efc_address=np.array([d.contact.efc_address]),
-            dim=np.array([d.contact.dim]),
-        )
+        c = types.Contact()
+        c.dist=output.dist,
+        c.pos=output.pos,
+        c.frame=frame,
+        c.includemargin=output.includemargin,
+        c.friction=output.friction,
+        c.solref=output.solref,
+        c.solreffriction=output.solreffriction,
+        c.solimp=output.solimp,
+        c.geom1=output.g1,
+        c.geom2=output.g2,
+        # geom=jp.array([output.g1, output.g2]).T,  # Uncomment if needed
+        c.efc_address=0, #np.array([d.c.efc_address]),
+        #c.dim=2, #np.array([d.c.dim]),
 
     return c

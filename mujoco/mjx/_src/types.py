@@ -40,7 +40,7 @@ class Contact:
     dim: wp.array(dtype=wp.int32, ndim=1)
     geom1: wp.array(dtype=wp.int32, ndim=1)
     geom2: wp.array(dtype=wp.int32, ndim=1)
-    efc_address: wp.array(dtype=wp.int32, ndim=1)
+    efc_address: int # wp.array(dtype=wp.int32, ndim=1)
 
 
 @wp.struct
