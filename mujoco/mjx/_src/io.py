@@ -178,6 +178,7 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
   d.qLD = wp.array(tile_fn(mjd.qLD), dtype=wp.float32, ndim=2)
   d.qLDiagInv = wp.array(tile_fn(mjd.qLDiagInv), dtype=wp.float32, ndim=2)
 
-  d.contact_pos = wp.array(tile_fn(mjd.contact_pos), dtype=wp.vec3, ndim=2)
+  # AD: where do we get the max number from?
+  d.contact_pos = wp.zeros((nworld, 100), dtype=wp.vec3)
 
   return d

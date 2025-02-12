@@ -7,10 +7,7 @@ import mujoco
 
 import numpy as np
 
-from .narrowphase import mjxGEOM_PLANE, mjxGEOM_size, where, _narrowphase
-#from narrowphase import gjk_epa_dense
-#from narrowphase import _narrowphase, where, mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size
-
+from .narrowphase import mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size, where, _narrowphase
 
 from . import math
 from . import types
@@ -586,18 +583,19 @@ def _geom_pairs(
     geom_con = geom_contype | geom_conaffinity
     b_start = m.body_geomadr.numpy()
     b_end = b_start + m.body_geomnum.numpy()
+    geom_type = m.geom_type.numpy()
     for b1, b2 in _body_pairs(m):
         g1_range = [g for g in range(b_start[b1], b_end[b1]) if geom_con[g]]
         g2_range = [g for g in range(b_start[b2], b_end[b2]) if geom_con[g]]
         for g1, g2 in itertools.product(g1_range, g2_range):
-            t1, t2 = m.geom_type[g1], m.geom_type[g2]
+            t1, t2 = geom_type[g1], geom_type[g2]
             # order pairs by geom_type for correct function mapping
             if t1 > t2:
                 g1, g2, t1, t2 = g2, g1, t2, t1
             # ignore plane<>plane and plane<>hfield
-            if (t1, t2) == (narrowphase.mjxGEOM_PLANE, narrowphase.mjxGEOM_PLANE):
+            if (t1, t2) == (mjxGEOM_PLANE, mjxGEOM_PLANE):
                 continue
-            if (t1, t2) == (narrowphase.mjxGEOM_PLANE, narrowphase.mjxGEOM_HFIELD):
+            if (t1, t2) == (mjxGEOM_PLANE, mjxGEOM_HFIELD):
                 continue
             # geoms must match contype and conaffinity on some bit
             mask = geom_contype[g1] & geom_conaffinity[g2]
@@ -1300,18 +1298,18 @@ def collision2(
         wp.synchronize()
 
         c = types.Contact()
-        c.dist=output.dist,
-        c.pos=output.pos,
-        c.frame=frame,
-        c.includemargin=output.includemargin,
-        c.friction=output.friction,
-        c.solref=output.solref,
-        c.solreffriction=output.solreffriction,
-        c.solimp=output.solimp,
-        c.geom1=output.g1,
-        c.geom2=output.g2,
+        c.dist = output.dist
+        c.pos = output.pos
+        c.frame = frame
+        c.includemargin = output.includemargin
+        c.friction = output.friction
+        c.solref = output.solref
+        c.solreffriction = output.solreffriction
+        c.solimp = output.solimp
+        c.geom1 = output.g1
+        c.geom2 = output.g2
         # geom=jp.array([output.g1, output.g2]).T,  # Uncomment if needed
-        c.efc_address=0, #np.array([d.c.efc_address]),
+        c.efc_address = 0 #np.array([d.c.efc_address]),
         #c.dim=2, #np.array([d.c.dim]),
 
     return c
