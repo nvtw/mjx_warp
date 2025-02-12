@@ -412,8 +412,8 @@ def gjk_epa_pipeline(
         size2 = geom_size[model_id * ngeom + g2]
         #gid1 = env_id * ngeom + g1
         #gid2 = env_id * ngeom + g2
-        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
-        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
+        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos[env_id], geom_xmat[env_id], size1, convex_vert_offset)
+        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos[env_id], geom_xmat[env_id], size2, convex_vert_offset)
 
         dir = wp.vec3(0.0, 0.0, 1.0)
         dir_n = -dir
@@ -594,8 +594,8 @@ def gjk_epa_pipeline(
         size2 = geom_size[model_id * ngeom + g2]
         #tg1 = env_id * ngeom + g1
         #tg2 = env_id * ngeom + g2
-        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos, geom_xmat, size1, convex_vert_offset)
-        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos, geom_xmat, size2, convex_vert_offset)
+        info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos[env_id], geom_xmat[env_id], size1, convex_vert_offset)
+        info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos[env_id], geom_xmat[env_id], size2, convex_vert_offset)
 
         normal = input_normal
 

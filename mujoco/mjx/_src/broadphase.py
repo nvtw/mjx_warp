@@ -8,9 +8,6 @@ import mujoco
 import numpy as np
 
 from .narrowphase import mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size, where, _narrowphase
-#from narrowphase import gjk_epa_dense
-#from narrowphase import _narrowphase, where, mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size
-
 
 from . import math
 from . import types
@@ -587,6 +584,7 @@ def _geom_pairs(
     geom_con = geom_contype | geom_conaffinity
     b_start = m.body_geomadr.numpy()
     b_end = b_start + m.body_geomnum.numpy()
+    geom_type = m.geom_type.numpy()
     for b1, b2 in _body_pairs(m):
         g1_range = [g for g in range(b_start[b1], b_end[b1]) if geom_con[g]]
         g2_range = [g for g in range(b_start[b2], b_end[b2]) if geom_con[g]]
@@ -1301,18 +1299,18 @@ def collision2(
         wp.synchronize()
 
         c = types.Contact()
-        c.dist=output.dist.numpy(),
-        c.pos=output.pos.numpy(),
-        c.frame=frame.numpy(),
-        c.includemargin=output.includemargin.numpy(),
-        c.friction=output.friction.numpy(),
-        c.solref=output.solref.numpy(),
-        c.solreffriction=output.solreffriction.numpy(),
-        c.solimp=output.solimp.numpy(),
-        c.geom1=output.g1.numpy(),
-        c.geom2=output.g2.numpy(),
+        c.dist = output.dist
+        c.pos = output.pos
+        c.frame = frame
+        c.includemargin = output.includemargin
+        c.friction = output.friction
+        c.solref = output.solref
+        c.solreffriction = output.solreffriction
+        c.solimp = output.solimp
+        c.geom1 = output.g1
+        c.geom2 = output.g2
         # geom=jp.array([output.g1, output.g2]).T,  # Uncomment if needed
-        c.efc_address=0, #np.array([d.c.efc_address]),
+        c.efc_address = 0 #np.array([d.c.efc_address]),
         #c.dim=2, #np.array([d.c.dim]),
 
     return c
