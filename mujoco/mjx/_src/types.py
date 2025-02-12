@@ -9,37 +9,19 @@ vec10 = vec10f
 
 
 
-@wp.struct
-class Contact:
-    """Result of collision detection functions.
-
-    Attributes:
-        dist: distance between nearest points; neg: penetration
-        pos: position of contact point: midpoint between geoms (3,)
-        frame: normal is in [0-2] (9,)
-        includemargin: include if dist<includemargin=margin-gap (1,)
-        friction: tangent1, 2, spin, roll1, 2 (5,)
-        solref: constraint solver reference, normal direction (mjNREF,)
-        solreffriction: constraint solver reference, friction directions (mjNREF,)
-        solimp: constraint solver impedance (mjNIMP,)
-        dim: contact space dimensionality: 1, 3, 4, or 6
-        geom1: id of geom 1; deprecated, use geom[0]
-        geom2: id of geom 2; deprecated, use geom[1]
-        geom: geom ids (2,)
-        efc_address: address in efc; -1: not included
-    """
-
-    dist: wp.array(dtype=wp.float32, ndim=1)
-    pos: wp.array(dtype=wp.vec3, ndim=1)
-    frame: wp.array(dtype=wp.mat33, ndim=1)
-    includemargin: wp.array(dtype=wp.float32, ndim=1)
-    friction: wp.array(dtype=wp.float32, ndim=2)  # (n_points, 5)
-    solref: wp.array(dtype=wp.float32, ndim=2)  # (n_points, mjNREF)
-    solreffriction: wp.array(dtype=wp.float32, ndim=2)  # (n_points, mjNREF)
-    solimp: wp.array(dtype=wp.float32, ndim=2)  # (n_points, mjNIMP)
-    dim: wp.array(dtype=wp.int32, ndim=1)
-    geom1: wp.array(dtype=wp.int32, ndim=1)
-    geom2: wp.array(dtype=wp.int32, ndim=1)
+#@wp.struct
+class Contact:    
+    # dist: np.array(dtype=wp.float32, ndim=1)
+    # pos: np.array(dtype=wp.vec3, ndim=1)
+    # frame: np.array(dtype=wp.mat33, ndim=1)
+    # includemargin: np.array(dtype=wp.float32, ndim=1)
+    # friction: np.array(dtype=wp.float32, ndim=2)  # (n_points, 5)
+    # solref: np.array(dtype=wp.float32, ndim=2)  # (n_points, mjNREF)
+    # solreffriction: np.array(dtype=wp.float32, ndim=2)  # (n_points, mjNREF)
+    # solimp: np.array(dtype=wp.float32, ndim=2)  # (n_points, mjNIMP)
+    # dim: np.array(dtype=wp.int32, ndim=1)
+    # geom1: np.array(dtype=wp.int32, ndim=1)
+    # geom2: np.array(dtype=wp.int32, ndim=1)
     efc_address: int # wp.array(dtype=wp.int32, ndim=1)
 
 
