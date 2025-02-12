@@ -88,17 +88,37 @@ class Model:
 
   #https://mujoco.readthedocs.io/en/3.1.3/APIreference/APItypes.html
   geom_size: wp.array(dtype=wp.vec3, ndim=1)
-  geom_dataid: wp.array(dtype=wp.int32, ndim=1)
-  npair : int
+  geom_type: wp.array(dtype=wp.int32, ndim=1)
   geom_contype: wp.array(dtype=wp.int32, ndim=1)
   geom_conaffinity: wp.array(dtype=wp.int32, ndim=1)
-  body_geomadr : wp.array(dtype=wp.int32, ndim=1)
-  body_geomnum : wp.array(dtype=wp.int32, ndim=1)
-  exclude_signature : wp.array(dtype=wp.int32, ndim=1)
-  opt_disableflags : int
-  body_weldid : wp.array(dtype=wp.int32, ndim=1)
-  body_parentid : wp.array(dtype=wp.int32, ndim=1)
-  mesh_convex : wp.array(dtype=wp.int32, ndim=1)
+  geom_priority: wp.array(dtype=wp.int32, ndim=1)
+  geom_margin: wp.array(dtype=wp.float32, ndim=1)
+  geom_gap: wp.array(dtype=wp.float32, ndim=1)
+  geom_solmix: wp.array(dtype=wp.float32, ndim=1)
+  geom_friction: wp.array(dtype=wp.float32, ndim=1)
+  geom_solref: wp.array(dtype=wp.float32, ndim=1)
+  geom_solimp: wp.array(dtype=wp.float32, ndim=1)
+  geom_aabb: wp.array(dtype=wp.float32, ndim=2)  # Reshaped to (-1, 6)
+  geom_rbound: wp.array(dtype=wp.float32, ndim=1)
+  geom_dataid: wp.array(dtype=wp.int32, ndim=1)
+  geom_bodyid: wp.array(dtype=wp.int32, ndim=1)
+  body_parentid: wp.array(dtype=wp.int32, ndim=1)
+  body_weldid: wp.array(dtype=wp.int32, ndim=1)
+  body_contype: wp.array(dtype=wp.int32, ndim=1)
+  body_conaffinity: wp.array(dtype=wp.int32, ndim=1)
+  body_geomadr: wp.array(dtype=wp.int32, ndim=1)
+  body_geomnum: wp.array(dtype=wp.int32, ndim=1)
+  pair_geom1: wp.array(dtype=wp.int32, ndim=1)
+  pair_geom2: wp.array(dtype=wp.int32, ndim=1)
+  exclude_signature: wp.array(dtype=wp.int32, ndim=1)
+  pair_margin: wp.array(dtype=wp.float32, ndim=1)
+  pair_gap: wp.array(dtype=wp.float32, ndim=1)
+  pair_friction: wp.array(dtype=wp.float32, ndim=1)
+  npair: int
+  nbody: int
+  nexclude: int
+  opt_disableflags: int
+  mesh_convex: wp.array(dtype=wp.int32, ndim=1)
 
 @wp.struct
 class Data:

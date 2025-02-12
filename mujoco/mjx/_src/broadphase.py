@@ -7,7 +7,7 @@ import mujoco
 
 import numpy as np
 
-from .narrowphase import mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size
+from .narrowphase import mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size, where
 #from narrowphase import gjk_epa_dense
 #from narrowphase import _narrowphase, where, mjxGEOM_PLANE, mjxGEOM_HFIELD, mjxGEOM_size
 
@@ -39,27 +39,28 @@ mjNDISABLE          = 12       # number of disable flags
 
 def get_convex_vert(m: types.Model) -> Tuple[jax.Array, jax.Array]:
     convex_vert, convex_vert_offset = [], [0]
-    nvert = 0
-    batch_dim = 0
-    for mesh in m.mesh_convex:
-        if mesh is not None:
-            if mesh.vert.ndim == 3:
-                batch_dim = mesh.vert.shape[0]
-                assert batch_dim == 1
-                nvert += mesh.vert.shape[1]
-                convex_vert.append(mesh.vert[0])
-            else:
-                nvert += mesh.vert.shape[0]
-                convex_vert.append(mesh.vert)
-        convex_vert_offset.append(nvert)
+    if m.mesh_convex is not None:
+        nvert = 0
+        batch_dim = 0
+        for mesh in m.mesh_convex:
+            if mesh is not None:
+                if mesh.vert.ndim == 3:
+                    batch_dim = mesh.vert.shape[0]
+                    assert batch_dim == 1
+                    nvert += mesh.vert.shape[1]
+                    convex_vert.append(mesh.vert[0])
+                else:
+                    nvert += mesh.vert.shape[0]
+                    convex_vert.append(mesh.vert)
+            convex_vert_offset.append(nvert)
 
-    # if batch_dim:
-    #     assert batch_dim == 1
-    #     convex_vert = jp.concatenate(convex_vert, axis=1) if nvert else jp.array([])
-    #     # TODO handle convex_vert_offset
-    # else:
-    convex_vert = np.concatenate(convex_vert) if nvert else np.array([])
-    convex_vert_offset = np.array(convex_vert_offset, dtype=np.uint32)
+        # if batch_dim:
+        #     assert batch_dim == 1
+        #     convex_vert = jp.concatenate(convex_vert, axis=1) if nvert else jp.array([])
+        #     # TODO handle convex_vert_offset
+        # else:
+        convex_vert = np.concatenate(convex_vert) if nvert else np.array([])
+        convex_vert_offset = np.array(convex_vert_offset, dtype=np.uint32)
     return convex_vert, convex_vert_offset
 
 
@@ -137,7 +138,7 @@ def map_body_pair_nxn(tid: int, nenv: int, nbody: int) -> int:
     body1 = body_pair_id // nbody
     body2 = body_pair_id % nbody
 
-    return narrowphase.where(body1 < body2, body1 + body2 * nbody, -1)
+    return where(body1 < body2, body1 + body2 * nbody, -1)
 
 
 @wp.kernel
@@ -479,20 +480,20 @@ def get_contact_solver_params(
     solmix1 = geom_solmix[g1]
     solmix2 = geom_solmix[g2]
     mix = solmix1 / (solmix1 + solmix2)
-    mix = narrowphase.where((solmix1 < mjMINVAL) and (solmix2 < mjMINVAL), 0.5, mix)
-    mix = narrowphase.where((solmix1 < mjMINVAL) and (solmix2 >= mjMINVAL), 0.0, mix)
-    mix = narrowphase.where((solmix1 >= mjMINVAL) and (solmix2 < mjMINVAL), 1.0, mix)
+    mix = where((solmix1 < mjMINVAL) and (solmix2 < mjMINVAL), 0.5, mix)
+    mix = where((solmix1 < mjMINVAL) and (solmix2 >= mjMINVAL), 0.0, mix)
+    mix = where((solmix1 >= mjMINVAL) and (solmix2 < mjMINVAL), 1.0, mix)
 
     p1 = geom_priority[g1]
     p2 = geom_priority[g2]
-    mix = narrowphase.where(p1 == p2, mix, narrowphase.where(p1 > p2, 1.0, 0.0))
+    mix = where(p1 == p2, mix, where(p1 > p2, 1.0, 0.0))
     is_standard = (geom_solref[g1, 0] > 0) and (geom_solref[g2, 0] > 0)
 
     # Hard code mjNREF = 2
     solref_ = wp.vec2(0.0, 0.0)  # wp.zeros(mjNREF, dtype=float)
     for i in range(2):
         solref_[i] = mix * geom_solref[g1, i] + (1.0 - mix) * geom_solref[g2, i]
-        solref_[i] = narrowphase.where(is_standard, solref_[i], wp.min(geom_solref[g1, i], geom_solref[g2, i]))
+        solref_[i] = where(is_standard, solref_[i], wp.min(geom_solref[g1, i], geom_solref[g2, i]))
 
     # solimp_ = wp.zeros(mjNIMP, dtype=float)
     # for i in range(mjNIMP):
@@ -525,12 +526,16 @@ def get_contact_solver_params(
 
 def _get_body_has_plane(m: types.Model) -> np.ndarray:
     # Determine which bodies have plane geoms
+    body_geomadr = m.body_geomadr.numpy()
+    body_geomnum = m.body_geomnum.numpy()
+    geom_type = m.geom_type.numpy()
+    
     body_has_plane = [False] * m.nbody
     for i in range(m.nbody):
-        start = m.body_geomadr[i]
-        end = m.body_geomadr[i] + m.body_geomnum[i]
+        start = body_geomadr[i]
+        end = body_geomadr[i] + body_geomnum[i]
         for g in range(start, end):
-            if m.geom_type[g] == narrowphase.mjxGEOM_PLANE:
+            if geom_type[g] == mjxGEOM_PLANE:
                 body_has_plane[i] = True
                 break
     return np.array(body_has_plane, dtype=np.uint32)
@@ -674,21 +679,21 @@ class CollisionInput:
         # type_pair_count = np.zeros(n_geom_type_pairs, dtype=np.uint32)
         convex_vert, convex_vert_offset = get_convex_vert(m)
 
-        self.geom_xpos = wp.from_jax(squeeze_array(d.geom_xpos, 2), dtype=wp.vec3).to(device)
-        self.geom_xmat = wp.from_jax(squeeze_array(d.geom_xmat, 3), dtype=wp.mat33).to(device)
-        self.geom_size = wp.from_jax(squeeze_array(m.geom_size, 2), dtype=wp.vec3).to(device)
+        self.geom_xpos = wp.array(squeeze_array(d.geom_xpos, 2), dtype=wp.vec3)
+        self.geom_xmat = wp.array(squeeze_array(d.geom_xmat, 2), dtype=wp.mat33)
+        self.geom_size = wp.array(m.geom_size, dtype=wp.vec3)
         self.geom_type = wp.array(m.geom_type, dtype=wp.int32)
         self.geom_contype = wp.array(m.geom_contype, dtype=wp.int32)
         self.geom_conaffinity = wp.array(m.geom_conaffinity, dtype=wp.int32)
         self.geom_priority = wp.array(m.geom_priority, dtype=wp.int32)
-        self.geom_margin = wp.from_jax(squeeze_array(m.geom_margin, 1), dtype=wp.float32).to(device)
-        self.geom_gap = wp.from_jax(squeeze_array(m.geom_gap, 1), dtype=wp.float32).to(device)
-        self.geom_solmix = wp.from_jax(squeeze_array(m.geom_solmix, 1), dtype=wp.float32).to(device)
-        self.geom_friction = wp.from_jax(squeeze_array(m.geom_friction, 2), dtype=wp.float32).to(device)
-        self.geom_solref = wp.from_jax(squeeze_array(m.geom_solref, 2), dtype=wp.float32).to(device)
-        self.geom_solimp = wp.from_jax(squeeze_array(m.geom_solimp, 2), dtype=wp.float32).to(device)
+        self.geom_margin = wp.array(squeeze_array(m.geom_margin, 1), dtype=wp.float32)
+        self.geom_gap = wp.array(squeeze_array(m.geom_gap, 1), dtype=wp.float32)
+        self.geom_solmix = wp.array(squeeze_array(m.geom_solmix, 1), dtype=wp.float32)
+        self.geom_friction = wp.array(squeeze_array(m.geom_friction, 2), dtype=wp.float32)
+        self.geom_solref = wp.array(squeeze_array(m.geom_solref, 2), dtype=wp.float32)
+        self.geom_solimp = wp.array(squeeze_array(m.geom_solimp, 2), dtype=wp.float32)
         self.geom_aabb = wp.array(m.geom_aabb.reshape((-1, 6)), dtype=wp.float32)
-        self.geom_rbound = wp.from_jax(squeeze_array(m.geom_rbound, 1), dtype=wp.float32).to(device)
+        self.geom_rbound = wp.array(squeeze_array(m.geom_rbound, 1), dtype=wp.float32)
         self.geom_dataid = wp.array(m.geom_dataid, dtype=wp.int32)
         self.geom_bodyid = wp.array(m.geom_bodyid, dtype=wp.int32)
         self.body_parentid = wp.array(m.body_parentid, dtype=wp.int32)
@@ -706,8 +711,8 @@ class CollisionInput:
         self.pair_friction = wp.array(m.pair_friction, dtype=wp.float32)
         # self.pair_solref = wp.array(m.pair_solref, dtype=wp.float32)
         # self.pair_solimp = wp.array(m.pair_solimp, dtype=wp.float32)
-        self.convex_vert = wp.from_jax(convex_vert, dtype=wp.vec3).to(device)
-        self.convex_vert_offset = wp.from_jax(convex_vert_offset, dtype=wp.int32).to(device)
+        self.convex_vert = wp.array(convex_vert, dtype=wp.vec3)
+        self.convex_vert_offset = wp.array(convex_vert_offset, dtype=wp.int32)
         self.type_pair_offset = wp.array(_get_ngeom_pair_type_offset(m), dtype=wp.int32)
         self.ngeom = len(m.geom_type)
         self.npair = m.npair
@@ -715,8 +720,8 @@ class CollisionInput:
         self.nexclude = m.nexclude
         self.max_contact_points = max_contact_points
         self.n_geom_pair = n_geom_pair
-        self.n_geom_types = narrowphase.mjxGEOM_size
-        self.filter_parent = not (m.opt.disableflags & mjDSBL_FILTERPARENT)
+        self.n_geom_types = mjxGEOM_size
+        self.filter_parent = not (m.opt_disableflags & mjDSBL_FILTERPARENT)
         self.depth_extension = depth_extension
         self.gjk_iteration_count = gjk_iter
         self.epa_iteration_count = epa_iter
@@ -725,6 +730,7 @@ class CollisionInput:
         self.multi_tilt_angle = wp.float32(multi_tilt_angle)
         self.nenv = nenv
         self.nmodel = nmodel
+
 
 
 
@@ -830,7 +836,7 @@ class OrthoBasis:
 def orthogonals(a: wp.vec3) -> OrthoBasis:
     y = wp.vec3(0.0, 1.0, 0.0)
     z = wp.vec3(0.0, 0.0, 1.0)
-    b = narrowphase.where((-0.5 < a[1]) and (a[1] < 0.5), y, z)
+    b = where((-0.5 < a[1]) and (a[1] < 0.5), y, z)
     b = b - a * wp.dot(a, b)
     b = wp.normalize(b)
     if a == wp.vec3(0.0, 0.0, 0.0):

@@ -92,3 +92,10 @@ class GeomType_CONVEX:
     rot: wp.mat33
     vert_offset: int
     vert_count: int
+
+
+@wp.func
+def where(condition: bool, ret_true: Any, ret_false: Any):
+    if condition:
+        return ret_true
+    return ret_false

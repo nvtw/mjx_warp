@@ -80,18 +80,40 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   #print(type(mjm.geom_size))
 
   # https://mujoco.readthedocs.io/en/3.1.3/APIreference/APItypes.html
-  m.geom_size = wp.array(mjm.geom_size, dtype=wp.vec3, ndim=1)
-  m.geom_dataid = wp.array(mjm.geom_dataid, dtype=wp.int32, ndim=1)
+  m.geom_size = wp.array(mjm.geom_size, dtype=wp.vec3)
+  m.geom_type = wp.array(mjm.geom_type, dtype=wp.int32)
+  m.geom_contype = wp.array(mjm.geom_contype, dtype=wp.int32)
+  m.geom_conaffinity = wp.array(mjm.geom_conaffinity, dtype=wp.int32)
+  m.geom_priority = wp.array(mjm.geom_priority, dtype=wp.int32)
+  m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32)
+  m.geom_gap = wp.array(mjm.geom_gap, dtype=wp.float32)
+  m.geom_solmix = wp.array(mjm.geom_solmix, dtype=wp.float32)
+  m.geom_friction = wp.array(mjm.geom_friction, dtype=wp.float32)
+  m.geom_solref = wp.array(mjm.geom_solref, dtype=wp.float32)
+  m.geom_solimp = wp.array(mjm.geom_solimp, dtype=wp.float32)
+  m.geom_aabb = wp.array(mjm.geom_aabb.reshape((-1, 6)), dtype=wp.float32)
+  m.geom_rbound = wp.array(mjm.geom_rbound, dtype=wp.float32)
+  m.geom_dataid = wp.array(mjm.geom_dataid, dtype=wp.int32)
+  m.geom_bodyid = wp.array(mjm.geom_bodyid, dtype=wp.int32)
+  m.body_parentid = wp.array(mjm.body_parentid, dtype=wp.int32)
+  m.body_weldid = wp.array(mjm.body_weldid, dtype=wp.int32)
+  m.body_contype = wp.array(mjm.body_contype, dtype=wp.int32)
+  m.body_conaffinity = wp.array(mjm.body_conaffinity, dtype=wp.int32)
+  m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32)
+  m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32)
+  m.pair_geom1 = wp.array(mjm.pair_geom1, dtype=wp.int32)
+  m.pair_geom2 = wp.array(mjm.pair_geom2, dtype=wp.int32)
+  m.exclude_signature = wp.array(mjm.exclude_signature, dtype=wp.int32)
+  m.pair_margin = wp.array(mjm.pair_margin, dtype=wp.float32)
+  m.pair_gap = wp.array(mjm.pair_gap, dtype=wp.float32)
+  m.pair_friction = wp.array(mjm.pair_friction, dtype=wp.float32)
   m.npair = mjm.npair
-  m.geom_contype = wp.array(mjm.geom_contype, dtype=wp.int32, ndim=1)
-  m.geom_conaffinity = wp.array(mjm.geom_conaffinity, dtype=wp.int32, ndim=1)
-  m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
-  m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
-  m.exclude_signature = wp.array(mjm.exclude_signature, dtype=wp.int32, ndim=1)
+  m.nbody = mjm.nbody
+  m.nexclude = mjm.nexclude
   m.opt_disableflags = mjm.opt.disableflags
-  m.body_weldid = wp.array(mjm.body_weldid, dtype=wp.int32, ndim=1)
-  m.body_parentid = wp.array(mjm.body_parentid, dtype=wp.int32, ndim=1)
-  m.mesh_convex = wp.array(mjm.mesh_convex, dtype=wp.int32, ndim=1)
+
+  if hasattr(mjm, "mesh_convex"):
+      m.mesh_convex = wp.array(mjm.mesh_convex, dtype=wp.int32, ndim=1)
 
   return m
 
