@@ -48,7 +48,20 @@ _OUTPUT = flags.DEFINE_enum(
 def _main(argv: Sequence[str]):
   """Runs testpeed function."""
   wp.init()
-# 
+
+  wp.set_device("cpu")
+  wp.config.mode = "debug"
+  # assert wp.context.runtime.core.is_debug_enabled(), "Warp must be built in debug mode to enable debugging kernels"
+
+  wp.config.mode = "debug"
+  assert wp.context.runtime.core.is_debug_enabled(), "Warp must be built in debug mode to enable debugging kernels"
+  
+
+  wp.config.verify_fp = True
+  wp.config.print_launches = True
+  wp.config.verify_cuda = True
+  
+
 
   path = epath.resource_path("mujoco.mjx") / "test_data"
   path = _BASE_PATH.value or path

@@ -13,5 +13,25 @@
             "console": "integratedTerminal",
             "args": ["--mjcf=convex_convex/convex_convex.xml"]
         }
+		{
+			"name": "Warp Debugger",
+			"type": "pythoncpp",
+			"request": "launch",
+			"pythonLaunchName": "Python: Current File",
+			"cppAttachName": "(lldb) Attach",
+		},
+		{
+			"name": "Python: Current File",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${file}",
+			"console": "integratedTerminal",
+			"stopOnEntry": false,
+		},
+		{
+			"name": "(lldb) Attach",
+			"type": "lldb",
+			"request": "attach",
+		},
     ]
 }

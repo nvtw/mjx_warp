@@ -16,6 +16,19 @@ import warp as wp
 
 
 
+mjxGEOM_PLANE = 0
+mjxGEOM_HFIELD = 1
+mjxGEOM_SPHERE = 2
+mjxGEOM_CAPSULE = 3
+mjxGEOM_ELLIPSOID = 4
+mjxGEOM_CYLINDER = 5
+mjxGEOM_BOX = 6
+mjxGEOM_CONVEX = 7
+mjxGEOM_size = 8
+
+
+
+
 mjDSBL_CONSTRAINT   = 1 << 0   # entire constraint solver
 mjDSBL_EQUALITY     = 1 << 1   # equality constraints
 mjDSBL_FRICTIONLOSS = 1 << 2   # joint and tendon frictionloss constraints
@@ -702,12 +715,12 @@ class CollisionInput:
         self.body_geomadr = wp.array(m.body_geomadr, dtype=wp.int32)
         self.body_geomnum = wp.array(m.body_geomnum, dtype=wp.int32)
         self.body_has_plane = wp.array(_get_body_has_plane(m), dtype=wp.int32)
-        self.pair_geom1 = wp.array(m.pair_geom1, dtype=wp.int32)
-        self.pair_geom2 = wp.array(m.pair_geom2, dtype=wp.int32)
-        self.exclude_signature = wp.array(m.exclude_signature, dtype=wp.int32)
-        self.pair_margin = wp.array(m.pair_margin, dtype=wp.float32)
-        self.pair_gap = wp.array(m.pair_gap, dtype=wp.float32)
-        self.pair_friction = wp.array(m.pair_friction, dtype=wp.float32)
+        self.pair_geom1 = m.pair_geom1
+        self.pair_geom2 = m.pair_geom2
+        self.exclude_signature = m.exclude_signature
+        self.pair_margin = m.pair_margin
+        self.pair_gap = m.pair_gap
+        self.pair_friction = m.pair_friction
         # self.pair_solref = wp.array(m.pair_solref, dtype=wp.float32)
         # self.pair_solimp = wp.array(m.pair_solimp, dtype=wp.float32)
         self.convex_vert = wp.array(convex_vert, dtype=wp.vec3)
@@ -1210,7 +1223,7 @@ def collision2(
     epa_best_count: int,
     multi_polygon_count: int,
     multi_tilt_angle: float,
-    device="cuda",
+    device="cpu",
 ) -> types.Contact:
     """GJK/EPA narrowphase routine."""
     ngeom = m.ngeom
@@ -1299,16 +1312,16 @@ def collision2(
         wp.synchronize()
 
         c = types.Contact()
-        c.dist = output.dist
-        c.pos = output.pos
-        c.frame = frame
-        c.includemargin = output.includemargin
-        c.friction = output.friction
-        c.solref = output.solref
-        c.solreffriction = output.solreffriction
-        c.solimp = output.solimp
-        c.geom1 = output.g1
-        c.geom2 = output.g2
+        c.dist = output.dist.numpy()
+        c.pos = output.pos.numpy()
+        c.frame = frame.numpy()
+        c.includemargin = output.includemargin.numpy()
+        c.friction = output.friction.numpy()
+        c.solref = output.solref.numpy()
+        c.solreffriction = output.solreffriction.numpy()
+        c.solimp = output.solimp.numpy()
+        c.geom1 = output.g1.numpy()
+        c.geom2 = output.g2.numpy()
         # geom=jp.array([output.g1, output.g2]).T,  # Uncomment if needed
         c.efc_address = 0 #np.array([d.c.efc_address]),
         #c.dim=2, #np.array([d.c.dim]),

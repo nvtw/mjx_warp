@@ -415,6 +415,8 @@ def gjk_epa_pipeline(
         info1 = wp.static(get_info(type1))(env_id, g1, dataid1, geom_xpos[env_id], geom_xmat[env_id], size1, convex_vert_offset)
         info2 = wp.static(get_info(type2))(env_id, g2, dataid2, geom_xpos[env_id], geom_xmat[env_id], size2, convex_vert_offset)
 
+        wp.breakpoint()
+
         dir = wp.vec3(0.0, 0.0, 1.0)
         dir_n = -dir
         depth = 1e30
@@ -528,6 +530,8 @@ def gjk_epa_pipeline(
         tid = wp.tid()
         if tid >= npair * nenv:
             return
+
+        wp.breakpoint()
 
         pair_id = tid % npair
         env_id = tid // npair
@@ -1612,6 +1616,10 @@ def _narrowphase(
         gjk_iteration_count,
         epa_iteration_count,
     )
+
+    #Sync for debugging
+    wp.synchronize()
+
     wp.launch(
         pipeline.gjk_epa_sparse,
         grid_size,
