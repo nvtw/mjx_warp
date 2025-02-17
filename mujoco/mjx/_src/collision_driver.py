@@ -219,7 +219,7 @@ import numpy as np
 class Contact:
     """Struct for storing contact information."""
     dist: np.ndarray
-    pos: np.ndarray
+    pos: np.ndarray 
     frame: np.ndarray
     includemargin: np.ndarray
     friction: np.ndarray
@@ -231,6 +231,23 @@ class Contact:
     geom2: np.ndarray
     geom: np.ndarray
     efc_address: np.ndarray
+    
+    def __init__(self, dist=None, pos=None, frame=None, includemargin=None, 
+                 friction=None, solref=None, solreffriction=None, solimp=None,
+                 dim=None, geom1=None, geom2=None, geom=None, efc_address=None):
+        self.dist = dist
+        self.pos = pos
+        self.frame = frame
+        self.includemargin = includemargin
+        self.friction = friction
+        self.solref = solref
+        self.solreffriction = solreffriction
+        self.solimp = solimp
+        self.dim = dim
+        self.geom1 = geom1
+        self.geom2 = geom2
+        self.geom = geom
+        self.efc_address = efc_address
 
 
 class FunctionKey:
@@ -533,11 +550,11 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
             solref=solref,
             solreffriction=solreffriction,
             solimp=solimp,
-            dim=d.contact.dim,
+            dim=d.contact_dim,
             geom1=np.array(geom[:, 0]),
             geom2=np.array(geom[:, 1]),
             geom=np.array(geom[:, :2]),
-            efc_address=d.contact.efc_address,
+            efc_address=d.contact_efc_address,
         )
 
     return groups
@@ -574,7 +591,28 @@ def collision(m: types.Model, d: types.Data) -> types.Data:
         # ncon is the number of contacts returned by the collision function
         ncon = 4 # func.ncon  # pytype: disable=attribute-error
 
-        dist, pos, frame = func(m, d, key, contact["geom"])
+        # Create output arrays for collision results
+        # dist = wp.zeros(shape=(contact.geom.shape[0] * ncon,), dtype=wp.float32)
+        # pos = wp.zeros(shape=(contact.geom.shape[0] * ncon, 3), dtype=wp.float32) 
+        # frame = wp.zeros(shape=(contact.geom.shape[0] * ncon, 9), dtype=wp.float32)
+
+        # Launch collision kernel
+        wp.launch(
+            kernel=func,
+            dim=contact.geom.shape[0],
+            inputs=[
+                m,
+                d,
+                key,
+                contact["geom"]
+            ],
+            outputs=[
+                dist,
+                pos, 
+                frame
+            ],
+            device="cuda"
+        )
         
         if ncon > 1:
             # repeat contacts to match the number of collisions returned

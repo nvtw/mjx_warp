@@ -76,6 +76,20 @@ class Model:
   opt_disableflags : int
   body_geomadr : wp.array(dtype=wp.int32, ndim=1)
   body_geomnum : wp.array(dtype=wp.int32, ndim=1)
+  geom_margin: wp.array(dtype=wp.float32, ndim=1)
+  geom_gap: wp.array(dtype=wp.float32, ndim=1)
+  geom_solmix: wp.array(dtype=wp.float32, ndim=1)
+  geom_friction: wp.array(dtype=wp.float32, ndim=1)
+  geom_solref: wp.array(dtype=wp.float32, ndim=1)
+  geom_solimp: wp.array(dtype=wp.float32, ndim=1)
+  pair_margin: wp.array(dtype=wp.float32, ndim=1)
+  pair_gap: wp.array(dtype=wp.float32, ndim=1)
+  pair_friction: wp.array(dtype=wp.float32, ndim=1)
+  pair_solref: wp.array(dtype=wp.float32, ndim=1)
+  pair_solreffriction: wp.array(dtype=wp.float32, ndim=1)
+  pair_solimp: wp.array(dtype=wp.float32, ndim=1)
+
+
 
 @wp.struct
 class Data:
@@ -121,4 +135,5 @@ class Data:
   geom_mesh_edge: wp.array(dtype=wp.vec3i, ndim=2)
   geom_mesh_edge_norm: wp.array(dtype=wp.vec3, ndim=2)
 
-
+  contact_dim: int
+  contact_efc_address: int

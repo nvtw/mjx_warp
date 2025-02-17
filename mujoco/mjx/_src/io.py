@@ -118,6 +118,19 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
   m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
 
+  m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
+  m.geom_gap = wp.array(mjm.geom_gap, dtype=wp.float32, ndim=1)
+  m.geom_solmix = wp.array(mjm.geom_solmix, dtype=wp.float32, ndim=1)
+  m.geom_friction = wp.array(mjm.geom_friction, dtype=wp.float32, ndim=1)
+  m.geom_solref = wp.array(mjm.geom_solref, dtype=wp.float32, ndim=1)
+  m.geom_solimp = wp.array(mjm.geom_solimp, dtype=wp.float32, ndim=1)
+  m.pair_margin = wp.array(mjm.pair_margin, dtype=wp.float32, ndim=1)
+  m.pair_gap = wp.array(mjm.pair_gap, dtype=wp.float32, ndim=1)
+  m.pair_friction = wp.array(mjm.pair_friction, dtype=wp.float32, ndim=1)
+  m.pair_solref = wp.array(mjm.pair_solref, dtype=wp.float32, ndim=1)
+  m.pair_solreffriction = wp.array(mjm.pair_solreffriction, dtype=wp.float32, ndim=1)
+  m.pair_solimp = wp.array(mjm.pair_solimp, dtype=wp.float32, ndim=1)
+
   return m
 
 
@@ -163,6 +176,9 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d.qfrc_actuator = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
   d.qfrc_smooth = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
   d.qacc_smooth = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
+
+  d.contact_dim = 0
+  d.contact_efc_address = 0
 
   return d
 
@@ -216,5 +232,8 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
   d.qfrc_actuator = wp.array(tile(mjd.qfrc_actuator), dtype=wp.float32, ndim=2)
   d.qfrc_smooth = wp.array(tile(mjd.qfrc_smooth), dtype=wp.float32, ndim=2)
   d.qacc_smooth = wp.array(tile(mjd.qacc_smooth), dtype=wp.float32, ndim=2)
+
+  d.contact_dim = d.contact.dim
+  d.contact_efc_address = 0
 
   return d
