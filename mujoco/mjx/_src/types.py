@@ -85,3 +85,10 @@ class Data:
   cvel: wp.array(dtype=wp.spatial_vector, ndim=2)
   cdof_dot: wp.array(dtype=wp.spatial_vector, ndim=2)
   qfrc_bias: wp.array(dtype=wp.float32, ndim=2)
+
+  geom_size: wp.array(dtype=wp.vec3, ndim=2)
+  geom_mesh_vert: wp.array(dtype=wp.vec3, ndim=2)
+  geom_mesh_face: wp.array(dtype=wp.vec3i, ndim=2)
+  geom_mesh_norm: wp.array(dtype=wp.vec3, ndim=2)
+  geom_mesh_edge: wp.array(dtype=wp.vec3i, ndim=2)
+  geom_mesh_edge_norm: wp.array(dtype=wp.vec3, ndim=2)
