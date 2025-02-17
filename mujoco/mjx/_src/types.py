@@ -137,3 +137,8 @@ class Data:
 
   contact_dim: int
   contact_efc_address: int
+
+  contact_dist: wp.array(dtype=wp.float32, ndim=2)
+  contact_pos: wp.array(dtype=wp.vec3, ndim=2)
+  contact_frame: wp.array(dtype=wp.mat33, ndim=2)
+

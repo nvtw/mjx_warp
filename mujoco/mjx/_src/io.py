@@ -180,6 +180,11 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d.contact_dim = 0
   d.contact_efc_address = 0
 
+  max_num_contacts = 100
+  d.contact_dist = wp.zeros((nworld, max_num_contacts), dtype=wp.float32)
+  d.contact_pos = wp.zeros((nworld, max_num_contacts), dtype=wp.vec3)
+  d.contact_frame = wp.zeros((nworld, max_num_contacts), dtype=wp.mat33)
+
   return d
 
 
@@ -235,5 +240,9 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
 
   d.contact_dim = d.contact.dim
   d.contact_efc_address = 0
+
+  d.contact_dist = wp.array(tile(mjd.contact_dist), dtype=wp.float32, ndim=2)
+  d.contact_pos = wp.array(tile(mjd.contact_pos), dtype=wp.vec3, ndim=2)
+  d.contact_frame = wp.array(tile(mjd.contact_frame), dtype=wp.mat33, ndim=2)
 
   return d

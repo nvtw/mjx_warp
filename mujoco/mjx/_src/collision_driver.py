@@ -167,42 +167,42 @@ def plane_convex_kernel(plane: wp.array(dtype=GeomInfo), convex: wp.array(dtype=
   plane_convex(id, plane, convex, 4*id, result)
   
 
-def plane_convex_launch(m: types.Model, d: types.Data):
+# def plane_convex_launch(m: types.Model, d: types.Data, ret: Collision):
   
-  num_geoms = m.ngeom
-  infos = GeomInfo() # wp.array(dtype=GeomInfo, size=num_geoms)
-  infos.pos = d.geom_xpos
-  infos.mat = d.geom_xmat
-  infos.size = m.geom_size
+#   num_geoms = m.ngeom
+#   infos = GeomInfo() # wp.array(dtype=GeomInfo, size=num_geoms)
+#   infos.pos = d.geom_xpos
+#   infos.mat = d.geom_xmat
+#   infos.size = m.geom_size
 
-  # todo: only capture pairs that are actually plane and convex
-  # for i in range(num_geoms):
-  #   infos[i] = GeomInfo(d.geom_xpos[i], d.geom_xmat[i], m.geom_size[i])
+#   # todo: only capture pairs that are actually plane and convex
+#   # for i in range(num_geoms):
+#   #   infos[i] = GeomInfo(d.geom_xpos[i], d.geom_xmat[i], m.geom_size[i])
 
-  convex_infos = ConvexInfo() # wp.array(dtype=ConvexInfo, size=num_geoms)
-  convex_infos.pos = d.geom_xpos
-  convex_infos.mat = d.geom_xmat
-  convex_infos.size = m.geom_size
-  convex_infos.vert = d.geom_mesh_vert
-  convex_infos.face = d.geom_mesh_face
-  convex_infos.face_normal = d.geom_mesh_norm
-  convex_infos.edge = d.geom_mesh_edge
-  convex_infos.edge_face_normal = d.geom_mesh_edge_norm
+#   convex_infos = ConvexInfo() # wp.array(dtype=ConvexInfo, size=num_geoms)
+#   convex_infos.pos = d.geom_xpos
+#   convex_infos.mat = d.geom_xmat
+#   convex_infos.size = m.geom_size
+#   convex_infos.vert = d.geom_mesh_vert
+#   convex_infos.face = d.geom_mesh_face
+#   convex_infos.face_normal = d.geom_mesh_norm
+#   convex_infos.edge = d.geom_mesh_edge
+#   convex_infos.edge_face_normal = d.geom_mesh_edge_norm
 
-  # for i in range(num_geoms):
-  #   convex_infos[i] = ConvexInfo(d.geom_xpos[i], d.geom_xmat[i], m.geom_size[i], d.geom_mesh_vert[i], d.geom_mesh_face[i], d.geom_mesh_norm[i], d.geom_mesh_edge[i], d.geom_mesh_edge_norm[i])
+#   # for i in range(num_geoms):
+#   #   convex_infos[i] = ConvexInfo(d.geom_xpos[i], d.geom_xmat[i], m.geom_size[i], d.geom_mesh_vert[i], d.geom_mesh_face[i], d.geom_mesh_norm[i], d.geom_mesh_edge[i], d.geom_mesh_edge_norm[i])
 
-  ret = Collision()
-  ret.distance = wp.array(dtype=wp.float32, size=num_geoms)
-  ret.position = wp.array(dtype=wp.vec3, size=num_geoms)
-  ret.frame = wp.array(dtype=wp.mat33, size=num_geoms)
+# #   ret = Collision()
+# #   ret.distance = wp.array(dtype=wp.float32, size=num_geoms)
+# #   ret.position = wp.array(dtype=wp.vec3, size=num_geoms)
+# #   ret.frame = wp.array(dtype=wp.mat33, size=num_geoms)
 
-  wp.launch(kernel=plane_convex_kernel,
-            grid=num_geoms,
-            inputs=[infos, convex_infos],
-            outputs=[ret])
+#   wp.launch(kernel=plane_convex_kernel,
+#             grid=num_geoms,
+#             inputs=[infos, convex_infos],
+#             outputs=[ret])
   
-  wp.synchronize()
+#   # wp.synchronize()
 
 
 
@@ -560,6 +560,14 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
     return groups
 
 
+
+
+
+
+
+
+
+
 def collision(m: types.Model, d: types.Data) -> types.Data:
     """Collides geometries."""
  
@@ -570,46 +578,66 @@ def collision(m: types.Model, d: types.Data) -> types.Data:
     groups = _contact_groups(m, d)
     
     for key, contact in groups.items():
+
+        # TODO: Support broad phase cull
         # determine which contacts we'll use for collision testing by running a broad phase cull if requested
-        if (
-            max_geom_pairs > -1
-            and contact.geom.shape[0] > max_geom_pairs
-            #and not set(key.types) & _GEOM_NO_BROADPHASE
-        ):
-            pos1, pos2 = d.geom_xpos[contact.geom.T]
-            size1, size2 = m.geom_rbound[contact.geom.T]
-            dist = np.linalg.norm(pos2 - pos1, axis=1) - (size1 + size2)
+        # if (
+        #     max_geom_pairs > -1
+        #     and contact.geom.shape[0] > max_geom_pairs
+        #     #and not set(key.types) & _GEOM_NO_BROADPHASE
+        # ):
+        #     pos1, pos2 = d.geom_xpos[contact.geom.T]
+        #     size1, size2 = m.geom_rbound[contact.geom.T]
+        #     dist = np.linalg.norm(pos2 - pos1, axis=1) - (size1 + size2)
             
-            # Get indices of top-k elements
-            idx = np.argsort(-dist)[:max_geom_pairs]
+        #     # Get indices of top-k elements
+        #     idx = np.argsort(-dist)[:max_geom_pairs]
             
-            # Apply indexing to contact
-            contact = {k: v[idx] for k, v in contact._asdict().items()}
+        #     # Apply indexing to contact
+        #     contact = {k: v[idx] for k, v in contact._asdict().items()}
         
         # run the collision function specified by the grouping key
-        func = plane_convex_launch #_COLLISION_FUNC[key.types]
+        func = plane_convex_kernel #_COLLISION_FUNC[key.types]
         # ncon is the number of contacts returned by the collision function
         ncon = 4 # func.ncon  # pytype: disable=attribute-error
 
-        # Create output arrays for collision results
-        # dist = wp.zeros(shape=(contact.geom.shape[0] * ncon,), dtype=wp.float32)
-        # pos = wp.zeros(shape=(contact.geom.shape[0] * ncon, 3), dtype=wp.float32) 
-        # frame = wp.zeros(shape=(contact.geom.shape[0] * ncon, 9), dtype=wp.float32)
+        
+
+        infos = GeomInfo() # wp.array(dtype=GeomInfo, size=num_geoms)
+        infos.pos = d.geom_xpos
+        infos.mat = d.geom_xmat
+        infos.size = d.geom_size
+
+        # todo: only capture pairs that are actually plane and convex
+        # for i in range(num_geoms):
+        #   infos[i] = GeomInfo(d.geom_xpos[i], d.geom_xmat[i], m.geom_size[i])
+
+        convex_infos = ConvexInfo() # wp.array(dtype=ConvexInfo, size=num_geoms)
+        convex_infos.pos = d.geom_xpos
+        convex_infos.mat = d.geom_xmat
+        convex_infos.size = d.geom_size
+        convex_infos.vert = d.geom_mesh_vert
+        convex_infos.face = d.geom_mesh_face
+        convex_infos.face_normal = d.geom_mesh_norm
+        convex_infos.edge = d.geom_mesh_edge
+        convex_infos.edge_face_normal = d.geom_mesh_edge_norm
+
+
+        c = Contact()
+        c.dist = d.contact_dist
+        c.pos = d.contact_pos
+        c.frame = d.contact_frame
 
         # Launch collision kernel
         wp.launch(
             kernel=func,
             dim=contact.geom.shape[0],
             inputs=[
-                m,
-                d,
-                key,
-                contact["geom"]
+                infos,
+                convex_infos
             ],
             outputs=[
-                dist,
-                pos, 
-                frame
+                c
             ],
             device="cuda"
         )
@@ -618,24 +646,25 @@ def collision(m: types.Model, d: types.Data) -> types.Data:
             # repeat contacts to match the number of collisions returned
             contact = {k: np.repeat(v, ncon, axis=0) for k, v in contact.items()}
         
-        groups[key] = {**contact, "dist": dist, "pos": pos, "frame": frame}
+        groups[key] = {**contact, "dist": contact.dist, "pos": contact.pos, "frame": contact.frame}
 
     # collapse contacts together, ensuring they are grouped by condim
     condim_groups = {}
     for key, contact in groups.items():
         condim_groups.setdefault(key.condim, []).append(contact)
 
+    # TODO: Support contact limiting
     # limit the number of contacts per condim group if requested
-    if max_contact_points > -1:
-        for key, contacts in condim_groups.items():
-            # Concatenate contacts in each condim group
-            contact = {k: np.concatenate([c[k] for c in contacts]) for k in contacts[0].keys()}
+    # if max_contact_points > -1:
+    #     for key, contacts in condim_groups.items():
+    #         # Concatenate contacts in each condim group
+    #         contact = {k: np.concatenate([c[k] for c in contacts]) for k in contacts[0].keys()}
             
-            if contact["geom"].shape[0] > max_contact_points:
-                idx = np.argsort(-contact["dist"])[:max_contact_points]
-                contact = {k: v[idx] for k, v in contact.items()}
+    #         if contact["geom"].shape[0] > max_contact_points:
+    #             idx = np.argsort(-contact["dist"])[:max_contact_points]
+    #             contact = {k: v[idx] for k, v in contact.items()}
             
-            condim_groups[key] = [contact]
+    #         condim_groups[key] = [contact]
 
     contacts = sum([condim_groups[k] for k in sorted(condim_groups)], [])
     contact = {k: np.concatenate([c[k] for c in contacts]) for k in contacts[0].keys()}
