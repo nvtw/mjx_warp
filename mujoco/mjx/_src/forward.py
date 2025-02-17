@@ -1,6 +1,7 @@
 import warp as wp
 from . import smooth
 from . import types
+from . import collision_driver
 
 
 def fwd_position(m: types.Model, d: types.Data):
@@ -12,7 +13,7 @@ def fwd_position(m: types.Model, d: types.Data):
   # TODO(team): smooth.tendon
   smooth.crb(m, d)
   smooth.factor_m(m, d)
-  # TODO(team): collision_driver.collision
+  collision_driver.collision(m, d)
   # TODO(team): constraint.make_constraint
   # TODO(team): smooth.transmission
 
