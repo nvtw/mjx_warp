@@ -504,13 +504,11 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
     return groups
 
 
-def collision(m: types.Model, d: types.Data, max_geom_pairs: int, max_contact_points: int) -> types.Data:
+def collision(m: types.Model, d: types.Data) -> types.Data:
     """Collides geometries."""
-    if d.ncon == 0:
-        return d
-
-    # max_geom_pairs = _numeric(m, 'max_geom_pairs')
-    # max_contact_points = _numeric(m, 'max_contact_points')
+ 
+    max_geom_pairs = 100 # _numeric(m, 'max_geom_pairs')
+    max_contact_points = 100 # _numeric(m, 'max_contact_points')
 
     # run collision functions on groups
     groups = _contact_groups(m, d)

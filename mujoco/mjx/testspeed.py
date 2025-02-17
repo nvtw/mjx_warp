@@ -24,7 +24,7 @@ from mujoco import mjx
 import warp as wp
 
 _FUNCTION = flags.DEFINE_enum(
-  "function", "kinematics", ["kinematics", "com_pos", "crb", "factor_m", "rne", "com_vel"], "the function to run"
+  "function", "collision", ["collision", "kinematics", "com_pos", "crb", "factor_m", "rne", "com_vel"], "the function to run"
 )
 _MJCF = flags.DEFINE_string(
   "mjcf", None, "path to model `.xml` or `.mjb`", required=True
@@ -67,13 +67,15 @@ def _main(argv: Sequence[str]):
 
   print(f"Model nbody: {m.nbody} nv: {m.nv} ngeom: {m.ngeom} is_sparse: {_IS_SPARSE.value}")
   print(f"Rolling out {_NSTEP.value} steps at dt = {m.opt.timestep:.3f}...")
+  print(dir(mjx))
   fn = {
+    'collision': mjx.collision,
     'kinematics': mjx.kinematics,
     'com_pos': mjx.com_pos,
     'crb': mjx.crb,
     'factor_m': mjx.factor_m,
     'rne': mjx.rne,
-    'com_vel': mjx.com_vel,
+    'com_vel': mjx.com_vel
   }[_FUNCTION.value]
   jit_time, run_time, steps = mjx.benchmark(
     fn,
