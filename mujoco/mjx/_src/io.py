@@ -102,6 +102,21 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.dof_damping = wp.array(mjm.dof_damping, dtype=wp.float32, ndim=1)
   m.opt.gravity = wp.vec3(mjm.opt.gravity)
   m.opt.is_sparse = support.is_sparse(mjm)
+  m.npair = mjm.npair
+  m.pair_geom1 = wp.array(mjm.pair_geom1, dtype=wp.int32, ndim=1)
+  m.pair_geom2 = wp.array(mjm.pair_geom2, dtype=wp.int32, ndim=1)
+  m.geom_type = wp.array(mjm.geom_type, dtype=wp.int32, ndim=1)
+  m.geom_dataid = wp.array(mjm.geom_dataid, dtype=wp.int32, ndim=1)
+  m.geom_priority = wp.array(mjm.geom_priority, dtype=wp.int32, ndim=1)
+  m.pair_dim = wp.array(mjm.pair_dim, dtype=wp.int32, ndim=1)
+  m.geom_condim = wp.array(mjm.geom_condim, dtype=wp.int32, ndim=1)
+  m.exclude_signature = wp.array(mjm.exclude_signature, dtype=wp.int32, ndim=1)
+  m.geom_contype = wp.array(mjm.geom_contype, dtype=wp.int32, ndim=1)
+  m.geom_conaffinity = wp.array(mjm.geom_conaffinity, dtype=wp.int32, ndim=1)
+  m.body_weldid = wp.array(mjm.body_weldid, dtype=wp.int32, ndim=1)
+  m.opt_disableflags = 0 # m.opt.disableflags
+  m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
+  m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
 
   return m
 

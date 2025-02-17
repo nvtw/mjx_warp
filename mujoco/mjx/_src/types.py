@@ -61,7 +61,21 @@ class Model:
   dof_armature: wp.array(dtype=wp.float32, ndim=1)
   dof_damping: wp.array(dtype=wp.float32, ndim=1)
   opt: Option
-
+  npair: int
+  pair_geom1: wp.array(dtype=wp.int32, ndim=1)
+  pair_geom2: wp.array(dtype=wp.int32, ndim=1)
+  geom_type: wp.array(dtype=wp.int32, ndim=1)
+  geom_dataid: wp.array(dtype=wp.int32, ndim=1)
+  geom_priority: wp.array(dtype=wp.int32, ndim=1)
+  pair_dim: wp.array(dtype=wp.int32, ndim=1)
+  geom_condim: wp.array(dtype=wp.int32, ndim=1)
+  exclude_signature : wp.array(dtype=wp.int32, ndim=1)
+  geom_contype : wp.array(dtype=wp.int32, ndim=1)
+  geom_conaffinity : wp.array(dtype=wp.int32, ndim=1)
+  body_weldid : wp.array(dtype=wp.int32, ndim=1)
+  opt_disableflags : int
+  body_geomadr : wp.array(dtype=wp.int32, ndim=1)
+  body_geomnum : wp.array(dtype=wp.int32, ndim=1)
 
 @wp.struct
 class Data:

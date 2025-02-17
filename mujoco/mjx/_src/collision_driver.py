@@ -251,6 +251,12 @@ class FunctionKey:
   condim: int
   subgrid_size: Tuple[int, int] = (-1, -1)
 
+  def __init__(self, types: Tuple[int, int], data_ids: Tuple[int, int], condim: int, subgrid_size: Tuple[int, int] = (-1, -1)):
+    self.types = types
+    self.data_ids = data_ids
+    self.condim = condim
+    self.subgrid_size = subgrid_size
+
 
 mjMINVAL = float(1E-15)
 
@@ -283,27 +289,38 @@ def geom_pairs(
     """
     pairs = set()
 
+    pair_geom1 = m.pair_geom1.numpy()
+    pair_geom2 = m.pair_geom2.numpy()
+    geom_type = m.geom_type.numpy()
+    exclude_signature = m.exclude_signature.numpy()
+    geom_contype = m.geom_contype.numpy()
+    geom_conaffinity = m.geom_conaffinity.numpy()
+    body_weldid = m.body_weldid.numpy()
+    body_parentid = m.body_parentid.numpy() 
+    body_geomadr = m.body_geomadr.numpy()
+    body_geomnum = m.body_geomnum.numpy()
+
     # Iterate through predefined pairs in <pair> elements
     for i in range(m.npair):
-        g1, g2 = m.pair_geom1[i], m.pair_geom2[i]
-        if m.geom_type[g1] > m.geom_type[g2]:
+        g1, g2 = pair_geom1[i], pair_geom2[i]
+        if geom_type[g1] > geom_type[g2]:
             g1, g2 = g2, g1  # Ensure ordering for function mapping
         pairs.add((g1, g2))
         yield g1, g2, i  # Emit known pair
 
     # Handle dynamically computed geom pairs
-    exclude_signature = set(m.exclude_signature)
-    geom_con = m.geom_contype | m.geom_conaffinity
-    filterparent = not (m.opt.disableflags & DisableBit_FILTERPARENT)
+    exclude_signature = set(exclude_signature)
+    geom_con = geom_contype | geom_conaffinity
+    filterparent = not (m.opt_disableflags & DisableBit_FILTERPARENT)
 
-    b_start, b_end = m.body_geomadr, m.body_geomadr + m.body_geomnum
+    b_start, b_end = body_geomadr, body_geomadr + body_geomnum
 
     for b1 in range(m.nbody):
         if not np.any(geom_con[b_start[b1]:b_end[b1]]):
             continue
 
-        w1 = m.body_weldid[b1]
-        w1_p = m.body_weldid[m.body_parentid[w1]]
+        w1 = body_weldid[b1]
+        w1_p = body_weldid[body_parentid[w1]]
 
         for b2 in range(b1, m.nbody):
             if not np.any(geom_con[b_start[b2]:b_end[b2]]):
@@ -313,11 +330,11 @@ def geom_pairs(
             if signature in exclude_signature:
                 continue
 
-            w2 = m.body_weldid[b2]
+            w2 = body_weldid[b2]
             if w1 == w2:
                 continue
 
-            w2_p = m.body_weldid[m.body_parentid[w2]]
+            w2_p = body_weldid[body_parentid[w2]]
             if filterparent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
                 continue
 
@@ -331,14 +348,14 @@ def geom_pairs(
             g1_list, g2_list = g1_mesh.flatten(), g2_mesh.flatten()
 
             for g1, g2 in zip(g1_list, g2_list):
-                t1, t2 = m.geom_type[g1], m.geom_type[g2]
+                t1, t2 = geom_type[g1], geom_type[g2]
                 if t1 > t2:
                     g1, g2, t1, t2 = g2, g1, t2, t1
 
                 if (t1, t2) in [(GeomType_PLANE, GeomType_PLANE), (GeomType_PLANE, GeomType_HFIELD)]:
                     continue
 
-                mask = (m.geom_contype[g1] & m.geom_conaffinity[g2]) | (m.geom_contype[g2] & m.geom_conaffinity[g1])
+                mask = (geom_contype[g1] & geom_conaffinity[g2]) | (geom_contype[g2] & geom_conaffinity[g1])
                 if not mask:
                     continue
 
@@ -366,43 +383,49 @@ def _geom_groups(m: types.Model) -> Dict[FunctionKey, List[Tuple[int, int, int]]
     """
     groups = {}
 
+    geom_dataid = m.geom_dataid.numpy()
+    geom_type = m.geom_type.numpy()
+    geom_priority = m.geom_priority.numpy()
+    pair_dim = m.pair_dim.numpy()
+    geom_condim = m.geom_condim.numpy()
+
     for g1, g2, ip in geom_pairs(m):
-        types = (m.geom_type[g1], m.geom_type[g2])
-        data_ids = (m.geom_dataid[g1], m.geom_dataid[g2])
+        types = (geom_type[g1], geom_type[g2])
+        data_ids = (geom_dataid[g1], geom_dataid[g2])
 
         if ip > -1:
-            condim = m.pair_dim[ip]
-        elif m.geom_priority[g1] > m.geom_priority[g2]:
-            condim = m.geom_condim[g1]
-        elif m.geom_priority[g1] < m.geom_priority[g2]:
-            condim = m.geom_condim[g2]
+            condim = pair_dim[ip]
+        elif geom_priority[g1] > geom_priority[g2]:
+            condim = geom_condim[g1]
+        elif geom_priority[g1] < geom_priority[g2]:
+            condim = geom_condim[g2]
         else:
-            condim = max(m.geom_condim[g1], m.geom_condim[g2])
+            condim = max(geom_condim[g1], geom_condim[g2])
 
         key = FunctionKey(types, data_ids, condim)
 
-        if types[0] == GeomType_HFIELD:
-            # Add static grid bounds to the grouping key for hfield collisions
-            geom_rbound_hfield = (
-                m.geom_rbound_hfield if isinstance(m, types.Model) else m.geom_rbound
-            )
+        # TODO: Add height field support
+        # if types[0] == GeomType_HFIELD:
+        #     # Add static grid bounds to the grouping key for hfield collisions
+        #     geom_rbound_hfield = (
+        #         m.geom_rbound_hfield if isinstance(m, types.Model) else m.geom_rbound
+        #     )
 
-            nrow, ncol = m.hfield_nrow[data_ids[0]], m.hfield_ncol[data_ids[0]]
-            xsize, ysize = m.hfield_size[data_ids[0]][:2]
-            xtick, ytick = (2 * xsize) / (ncol - 1), (2 * ysize) / (nrow - 1)
+        #     nrow, ncol = m.hfield_nrow[data_ids[0]], m.hfield_ncol[data_ids[0]]
+        #     xsize, ysize = m.hfield_size[data_ids[0]][:2]
+        #     xtick, ytick = (2 * xsize) / (ncol - 1), (2 * ysize) / (nrow - 1)
 
-            xbound = int(np.ceil(2 * geom_rbound_hfield[g2] / xtick)) + 1
-            xbound = min(xbound, ncol)
+        #     xbound = int(np.ceil(2 * geom_rbound_hfield[g2] / xtick)) + 1
+        #     xbound = min(xbound, ncol)
 
-            ybound = int(np.ceil(2 * geom_rbound_hfield[g2] / ytick)) + 1
-            ybound = min(ybound, nrow)
+        #     ybound = int(np.ceil(2 * geom_rbound_hfield[g2] / ytick)) + 1
+        #     ybound = min(ybound, nrow)
 
-            key = FunctionKey(types, data_ids, condim, (xbound, ybound))
+        #     key = FunctionKey(types, data_ids, condim, (xbound, ybound))
 
         groups.setdefault(key, []).append((g1, g2, ip))
 
     return groups
-
 
 def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]:
     """Returns contact groups to check for collisions.
@@ -420,7 +443,23 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
     groups = {}
     eps = mjMINVAL
 
-    for key, geom_ids in _geom_groups(m).items():
+    # Store required model data in numpy arrays
+    geom_margin = m.geom_margin.numpy()
+    geom_gap = m.geom_gap.numpy()
+    geom_solmix = m.geom_solmix.numpy()
+    geom_friction = m.geom_friction.numpy()
+    geom_solref = m.geom_solref.numpy()
+    geom_solimp = m.geom_solimp.numpy()
+    geom_priority = m.geom_priority.numpy()
+    pair_margin = m.pair_margin.numpy()
+    pair_gap = m.pair_gap.numpy()
+    pair_friction = m.pair_friction.numpy()
+    pair_solref = m.pair_solref.numpy()
+    pair_solreffriction = m.pair_solreffriction.numpy()
+    pair_solimp = m.pair_solimp.numpy()
+
+    g = _geom_groups(m)
+    for key, geom_ids in g.items():
         geom = np.array(geom_ids)
         geom1, geom2, ip = geom.T
         geom1, geom2, ip = geom1[ip == -1], geom2[ip == -1], ip[ip != -1]
@@ -429,19 +468,19 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
         if ip.size > 0:
             # Pair contacts get their params from m.pair_* fields
             params.append((
-                m.pair_margin[ip] - m.pair_gap[ip],
-                np.clip(m.pair_friction[ip], a_min=eps, a_max=None),
-                m.pair_solref[ip],
-                m.pair_solreffriction[ip],
-                m.pair_solimp[ip],
+                pair_margin[ip] - pair_gap[ip],
+                np.clip(pair_friction[ip], a_min=eps, a_max=None),
+                pair_solref[ip],
+                pair_solreffriction[ip],
+                pair_solimp[ip],
             ))
 
         if geom1.size > 0 and geom2.size > 0:
             # Other contacts get their params from geom fields
-            margin = np.maximum(m.geom_margin[geom1], m.geom_margin[geom2])
-            gap = np.maximum(m.geom_gap[geom1], m.geom_gap[geom2])
+            margin = np.maximum(geom_margin[geom1], geom_margin[geom2])
+            gap = np.maximum(geom_gap[geom1], geom_gap[geom2])
 
-            solmix1, solmix2 = m.geom_solmix[geom1], m.geom_solmix[geom2]
+            solmix1, solmix2 = geom_solmix[geom1], geom_solmix[geom2]
             mix = solmix1 / (solmix1 + solmix2)
             mix = np.where((solmix1 < eps) & (solmix2 < eps), 0.5, mix)
             mix = np.where((solmix1 < eps) & (solmix2 >= eps), 0.0, mix)
@@ -449,8 +488,8 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
             mix = mix[:, None]  # Ensure correct broadcasting
 
             # Friction: max
-            friction = np.maximum(m.geom_friction[geom1], m.geom_friction[geom2])
-            solref1, solref2 = m.geom_solref[geom1], m.geom_solref[geom2]
+            friction = np.maximum(geom_friction[geom1], geom_friction[geom2])
+            solref1, solref2 = geom_solref[geom1], geom_solref[geom2]
 
             # Reference standard: mix
             solref_standard = mix * solref1 + (1 - mix) * solref2
@@ -464,17 +503,17 @@ def _contact_groups(m: types.Model, d: types.Data) -> Dict[FunctionKey, Contact]
             solreffriction = np.zeros(geom1.shape + (mjNREF,))
 
             # Impedance: mix
-            solimp = mix * m.geom_solimp[geom1] + (1 - mix) * m.geom_solimp[geom2]
+            solimp = mix * geom_solimp[geom1] + (1 - mix) * geom_solimp[geom2]
 
-            pri = m.geom_priority[geom1] != m.geom_priority[geom2]
+            pri = geom_priority[geom1] != geom_priority[geom2]
             if pri.any():
                 # Use priority geom when specified instead of mixing
-                gp1, gp2 = m.geom_priority[geom1], m.geom_priority[geom2]
+                gp1, gp2 = geom_priority[geom1], geom_priority[geom2]
                 gp = np.where(gp1 > gp2, geom1, geom2)[pri]
 
-                friction[pri] = m.geom_friction[gp]
-                solref[pri] = m.geom_solref[gp]
-                solimp[pri] = m.geom_solimp[gp]
+                friction[pri] = geom_friction[gp]
+                solref[pri] = geom_solref[gp]
+                solimp[pri] = geom_solimp[gp]
 
             # Unpack 5D friction
             friction = friction[:, [0, 0, 1, 2, 2]]
