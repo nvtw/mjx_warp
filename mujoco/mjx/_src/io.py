@@ -138,6 +138,8 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d = types.Data()
   d.nworld = nworld
 
+  #print(dir(mjm))
+
   qpos0 = np.tile(mjm.qpos0, (nworld, 1))
   d.qpos = wp.array(qpos0, dtype=wp.float32, ndim=2)
   d.qvel = wp.zeros((nworld, mjm.nv), dtype=wp.float32, ndim=2)
@@ -201,6 +203,8 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
 def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.Data:
   d = types.Data()
   d.nworld = nworld
+
+  print(dir(mjd))
 
   # TODO(erikfrey): would it be better to tile on the gpu?
   def tile(x):

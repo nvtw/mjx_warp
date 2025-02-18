@@ -11,7 +11,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["--mjcf=humanoid/humanoid.xml"]
+            "args": ["--mjcf=convex/convex_plane.xml"]
         }
     ]
 }

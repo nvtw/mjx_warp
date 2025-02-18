@@ -669,6 +669,8 @@ def collision(m: types.Model, d: types.Data) -> types.Data:
     c.position = d.contact_pos
     c.frame = d.contact_frame
 
+    #return d
+
     # Launch collision kernel
     wp.launch(
       kernel=func,
