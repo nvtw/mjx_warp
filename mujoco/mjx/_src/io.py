@@ -177,6 +177,16 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d.qfrc_smooth = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
   d.qacc_smooth = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
 
+  d.geom_size = wp.zeros((nworld, mjm.ngeom), dtype=wp.vec3)
+  d.geom_mesh_vert = wp.zeros((nworld, mjm.nmesh), dtype=wp.vec3)
+  d.geom_mesh_face = wp.zeros((nworld, mjm.nmesh), dtype=wp.int32)
+  d.geom_mesh_norm = wp.zeros((nworld, mjm.nmesh), dtype=wp.vec3)
+  d.geom_mesh_edge = wp.zeros((nworld, mjm.nmesh), dtype=wp.int32)
+  d.geom_mesh_edge_norm = wp.zeros((nworld, mjm.nmesh), dtype=wp.vec3)
+
+  d.mesh_vertadr = wp.zeros((nworld, mjm.nmesh), dtype=wp.int32)
+  d.mesh_vertnum = wp.zeros((nworld, mjm.nmesh), dtype=wp.int32)
+
   d.contact_dim = 0
   d.contact_efc_address = 0
 
@@ -237,6 +247,16 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
   d.qfrc_actuator = wp.array(tile(mjd.qfrc_actuator), dtype=wp.float32, ndim=2)
   d.qfrc_smooth = wp.array(tile(mjd.qfrc_smooth), dtype=wp.float32, ndim=2)
   d.qacc_smooth = wp.array(tile(mjd.qacc_smooth), dtype=wp.float32, ndim=2)
+
+  d.geom_size = wp.array(tile(mjd.geom_size), dtype=wp.vec3, ndim=2)
+  d.geom_mesh_vert = wp.array(tile(mjd.geom_mesh_vert), dtype=wp.vec3, ndim=2)
+  d.geom_mesh_face = wp.array(tile(mjd.geom_mesh_face), dtype=wp.int32, ndim=2)
+  d.geom_mesh_norm = wp.array(tile(mjd.geom_mesh_norm), dtype=wp.vec3, ndim=2)
+  d.geom_mesh_edge = wp.array(tile(mjd.geom_mesh_edge), dtype=wp.int32, ndim=2)
+  d.geom_mesh_edge_norm = wp.array(tile(mjd.geom_mesh_edge_norm), dtype=wp.vec3, ndim=2)
+  # https://mujoco.readthedocs.io/en/2.1.3/APIreference.html
+  d.mesh_vertadr = wp.array(tile(mjd.mesh_vertadr), dtype=int, ndim=2)
+  d.mesh_vertnum = wp.array(tile(mjd.mesh_vertnum), dtype=int, ndim=2)
 
   d.contact_dim = d.contact.dim
   d.contact_efc_address = 0

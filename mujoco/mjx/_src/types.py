@@ -130,10 +130,13 @@ class Data:
 
   geom_size: wp.array(dtype=wp.vec3, ndim=2)
   geom_mesh_vert: wp.array(dtype=wp.vec3, ndim=2)
-  geom_mesh_face: wp.array(dtype=wp.vec3i, ndim=2)
+  geom_mesh_face: wp.array(dtype=wp.int32, ndim=2)
   geom_mesh_norm: wp.array(dtype=wp.vec3, ndim=2)
-  geom_mesh_edge: wp.array(dtype=wp.vec3i, ndim=2)
+  geom_mesh_edge: wp.array(dtype=wp.int32, ndim=2)
   geom_mesh_edge_norm: wp.array(dtype=wp.vec3, ndim=2)
+  # https://mujoco.readthedocs.io/en/2.1.3/APIreference.html
+  mesh_vertadr: wp.array(dtype=wp.int32, ndim=2)
+  mesh_vertnum: wp.array(dtype=wp.int32, ndim=2)
 
   contact_dim: int
   contact_efc_address: int
