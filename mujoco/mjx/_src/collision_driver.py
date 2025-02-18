@@ -53,7 +53,13 @@ def sel(condition: bool, onTrue: float, onFalse: float) -> float:
     return onFalse
 
 
-
+@wp.func
+def sel(condition: bool, onTrue: wp.vec3, onFalse: wp.vec3) -> wp.vec3:
+  """Returns onTrue if condition is true, otherwise returns onFalse."""
+  if condition:
+    return onTrue
+  else:
+    return onFalse
 
 
 
@@ -82,62 +88,65 @@ def make_frame(a: wp.vec3) -> wp.mat33:
 
 
 
-def _manifold_points_generic(poly_mask):
-  @wp.func
-  def _manifold_points(
-    poly: wp.array(dtype=wp.vec3),
-    poly_start: int,
-    poly_count: int,
-    poly_norm: wp.vec3,
-  ) -> wp.vec4i:
-    """Chooses four points on the polygon with approximately maximal area."""
-    max_val = float(-1e6)
-    a_idx = int(0)
-    for i in range(poly_count):
-      val = sel(poly_mask(i) > 0.0, 0.0, -1e6)
-      if val > max_val:
-        max_val = val
-        a_idx = i
-    a = poly[poly_start + a_idx]
-    # choose point b furthest from a
-    max_val = float(-1e6)
-    b_idx = int(0)
-    for i in range(poly_count):
-      val = wp.length_sq(a - poly[poly_start + i]) + sel(poly_mask(i) > 0.0, 0.0, -1e6)
-      if val > max_val:
-        max_val = val
-        b_idx = i
-    b = poly[poly_start + b_idx]
-    # choose point c furthest along the axis orthogonal to (a-b)
-    ab = wp.cross(poly_norm, a - b)
-    # ap = a - poly
-    max_val = float(-1e6)
-    c_idx = int(0)
-    for i in range(poly_count):
-      val = wp.abs(wp.dot(a - poly[poly_start + i], ab)) + sel(poly_mask(i) > 0.0, 0.0, -1e6)
-      if val > max_val:
-        max_val = val
-        c_idx = i
-    c = poly[poly_start + c_idx]
-    # choose point d furthest from the other two triangle edges
-    ac = wp.cross(poly_norm, a - c)
-    bc = wp.cross(poly_norm, b - c)
-    # bp = b - poly
-    max_val = float(-1e6)
-    d_idx = int(0)
-    for i in range(poly_count):
-      val = (
-        wp.abs(wp.dot(b - poly[poly_start + i], bc))
-        + wp.abs(wp.dot(a - poly[poly_start + i], ac))
-        + sel(poly_mask(i) > 0.0, 0.0, -1e6)
-      )
-      if val > max_val:
-        max_val = val
-        d_idx = i
-    return wp.vec4i(a_idx, b_idx, c_idx, d_idx)
-  
-  return _manifold_points
-
+@wp.func
+def _manifold_points(
+  poly: wp.array(dtype=wp.vec3),
+  poly_start: int,
+  poly_count: int,
+  poly_norm: wp.vec3,
+  plane_pos: wp.vec3,
+  n: wp.vec3,
+  max_support: float,
+) -> wp.vec4i:
+  """Chooses four points on the polygon with approximately maximal area."""
+  max_val = float(-1e6)
+  a_idx = int(0)
+  for i in range(poly_count):
+    support = wp.dot(plane_pos - poly[poly_start+i], n)
+    val = sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
+    if val > max_val:
+      max_val = val
+      a_idx = i
+  a = poly[poly_start + a_idx]
+  # choose point b furthest from a
+  max_val = float(-1e6)
+  b_idx = int(0)
+  for i in range(poly_count):
+    support = wp.dot(plane_pos - poly[poly_start+i], n)
+    val = wp.length_sq(a - poly[poly_start + i]) + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
+    if val > max_val:
+      max_val = val
+      b_idx = i
+  b = poly[poly_start + b_idx]
+  # choose point c furthest along the axis orthogonal to (a-b)
+  ab = wp.cross(poly_norm, a - b)
+  # ap = a - poly
+  max_val = float(-1e6)
+  c_idx = int(0)
+  for i in range(poly_count):
+    support = wp.dot(plane_pos - poly[poly_start+i], n)
+    val = wp.abs(wp.dot(a - poly[poly_start + i], ab)) + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
+    if val > max_val:
+      max_val = val
+      c_idx = i
+  c = poly[poly_start + c_idx]
+  # choose point d furthest from the other two triangle edges
+  ac = wp.cross(poly_norm, a - c)
+  bc = wp.cross(poly_norm, b - c)
+  # bp = b - poly
+  max_val = float(-1e6)
+  d_idx = int(0)
+  for i in range(poly_count):
+    support = wp.dot(plane_pos - poly[poly_start+i], n)
+    val = (
+      wp.abs(wp.dot(b - poly[poly_start + i], bc))
+      + wp.abs(wp.dot(a - poly[poly_start + i], ac))
+      + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
+    )
+    if val > max_val:
+      max_val = val
+      d_idx = i
+  return wp.vec4i(a_idx, b_idx, c_idx, d_idx)
 
 
 @wp.func
@@ -164,31 +173,14 @@ def plane_convex(
   n = (
     wp.transpose(convexMat) @ planeMat[2]
   )  # TODO: Does [2] indeed return the last column of the matrix?
-  # support = (plane_pos - vert) @ n
-  # # search for manifold points within a 1mm skin depth
-  # idx = wp.vec4i(0)
-  # idx = _manifold_points(convex.vert, support > wp.maximum(0.0, wp.max(support) - 1e-3), vert_start, vert_count, n)
-  # frame = make_frame(
-  #   wp.vec3(
-  #     planeMat[planeIndex][0, 2], planeMat[planeIndex][1, 2], planeMat[planeIndex][2, 2]
-  #   )
-  # )
-
 
   max_support = float(-100000)
   for i in range(vert_count):
     max_support = wp.max(max_support, wp.dot(plane_pos - convex.vert[vert_start+i], n))
 
-  @wp.func
-  def poly_mask(index: int):
-    support = wp.dot(plane_pos - convex.vert[vert_start+index], n)
-    return support > wp.max(0.0, max_support - 1e-3)
-  
-
-
   # search for manifold points within a 1mm skin depth
   idx = wp.vec4i(0)
-  idx = _manifold_points_generic(poly_mask)(convex.vert, vert_start, vert_count, n)
+  idx = _manifold_points(convex.vert, vert_start, vert_count, n, plane_pos, n, max_support)
   frame = make_frame(
     wp.vec3(
       planeMat[0, 2], planeMat[1, 2], planeMat[2, 2]
@@ -205,18 +197,18 @@ def plane_convex(
   for i in range(4):
     # Get vertex position and convert to world frame
     id = int(idx[i])
-    pos_i = vert[id]
+    pos_i = convex.vert[id]
     pos_i = convexPos + pos_i @ wp.transpose(convexMat)
 
     # Compute uniqueness by comparing with previous indices
-    count = 0
+    count = int(0)
     for j in range(i + 1):
       if idx[i] == idx[j]:
         count += 1
     unique = sel(count == 1, 1.0, 0.0)
 
     # Compute distance and final position
-    dist_i = sel(unique > 0.0, -support[id], 1.0)
+    dist_i = sel(unique > 0.0, -wp.dot(plane_pos - convex.vert[vert_start+i], n), 1.0)
     pos_i = pos_i - 0.5 * dist_i * frame[2]
 
     # Store results
