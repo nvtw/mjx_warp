@@ -14,6 +14,7 @@
 # ==============================================================================
 """Run benchmarks on various devices."""
 
+import inspect
 from typing import Sequence
 
 from absl import app
@@ -24,7 +25,10 @@ from mujoco import mjx
 import warp as wp
 
 _FUNCTION = flags.DEFINE_enum(
-  "function", "collision", ["collision"], "the function to run"
+  "function",
+  "kinematics",
+  [n for n, _ in inspect.getmembers(mjx, inspect.isfunction)],
+  "the function to run"
 )
 _MJCF = flags.DEFINE_string(
   "mjcf", None, "path to model `.xml` or `.mjb`", required=True
@@ -65,14 +69,13 @@ def _main(argv: Sequence[str]):
   else:
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
 
-  print(f"Model nbody: {m.nbody} nv: {m.nv} ngeom: {m.ngeom} is_sparse: {_IS_SPARSE.value}")
+  print(
+    f"Model nbody: {m.nbody} nv: {m.nv} ngeom: {m.ngeom} is_sparse: {_IS_SPARSE.value}"
+  )
   print(f"Rolling out {_NSTEP.value} steps at dt = {m.opt.timestep:.3f}...")
-  print(dir(mjx))
-  fn = {
-    'collision': mjx.collision
-  }[_FUNCTION.value]
+
   jit_time, run_time, steps = mjx.benchmark(
-    fn,
+    mjx.__dict__[_FUNCTION.value],
     m,
     _NSTEP.value,
     _BATCH_SIZE.value,
@@ -89,8 +92,8 @@ Summary for {_BATCH_SIZE.value} parallel rollouts
 
  Total JIT time: {jit_time:.2f} s
  Total simulation time: {run_time:.2f} s
- Total steps per second: {steps / run_time:.0f}
- Total realtime factor: {steps * m.opt.timestep / run_time:.2f} x
+ Total steps per second: {steps / run_time:,.0f}
+ Total realtime factor: {steps * m.opt.timestep / run_time:,.2f} x
  Total time per step: {1e6 * run_time / steps:.2f} µs""")
   elif _OUTPUT.value == "tsv":
     name = name.split("/")[-1].replace("testspeed_", "")
