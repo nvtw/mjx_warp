@@ -23,25 +23,25 @@ class CollisionData:
 class GeomInfo:
   """Geom properties for primitive shapes."""
 
-  pos: wp.array(dtype=wp.vec3)
-  mat: wp.array(dtype=wp.mat33)
-  size: wp.array(dtype=wp.vec3)
+  pos: wp.array(dtype=wp.vec3, ndim=2)
+  mat: wp.array(dtype=wp.mat33, ndim=2)
+  size: wp.array(dtype=wp.vec3, ndim=2)
 
 
 @wp.struct
 class ConvexInfo:
   """Geom properties for convex meshes."""
 
-  pos: wp.array(dtype=wp.vec3)
-  mat: wp.array(dtype=wp.mat33)
-  size: wp.array(dtype=wp.vec3)
-  vert: wp.array(dtype=wp.vec3)
-  face: wp.array(dtype=wp.int32)
-  face_normal: wp.array(dtype=wp.vec3)
-  edge: wp.array(dtype=wp.int32)
-  edge_face_normal: wp.array(dtype=wp.vec3)
-  vert_addr: wp.array(dtype=wp.int32)
-  vert_num: wp.array(dtype=wp.int32)
+  pos: wp.array(dtype=wp.vec3, ndim=2)
+  mat: wp.array(dtype=wp.mat33, ndim=2)
+  size: wp.array(dtype=wp.vec3, ndim=2)
+  vert: wp.array(dtype=wp.vec3, ndim=2)
+  face: wp.array(dtype=wp.int32, ndim=2)
+  face_normal: wp.array(dtype=wp.vec3, ndim=2)
+  edge: wp.array(dtype=wp.int32, ndim=2)
+  edge_face_normal: wp.array(dtype=wp.vec3, ndim=2)
+  vert_addr: wp.array(dtype=wp.int32, ndim=2)
+  vert_num: wp.array(dtype=wp.int32, ndim=2)
 
 
 @wp.func
@@ -90,7 +90,8 @@ def make_frame(a: wp.vec3) -> wp.mat33:
 
 @wp.func
 def _manifold_points(
-  poly: wp.array(dtype=wp.vec3),
+  worldId : int,
+  poly: wp.array(dtype=wp.vec3, ndim=2),
   poly_start: int,
   poly_count: int,
   poly_norm: wp.vec3,
@@ -102,34 +103,34 @@ def _manifold_points(
   max_val = float(-1e6)
   a_idx = int(0)
   for i in range(poly_count):
-    support = wp.dot(plane_pos - poly[poly_start+i], n)
+    support = wp.dot(plane_pos - poly[worldId, poly_start+i], n)
     val = sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
     if val > max_val:
       max_val = val
       a_idx = i
-  a = poly[poly_start + a_idx]
+  a = poly[worldId, poly_start + a_idx]
   # choose point b furthest from a
   max_val = float(-1e6)
   b_idx = int(0)
   for i in range(poly_count):
-    support = wp.dot(plane_pos - poly[poly_start+i], n)
-    val = wp.length_sq(a - poly[poly_start + i]) + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
+    support = wp.dot(plane_pos - poly[worldId, poly_start+i], n)
+    val = wp.length_sq(a - poly[worldId, poly_start + i]) + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
     if val > max_val:
       max_val = val
       b_idx = i
-  b = poly[poly_start + b_idx]
+  b = poly[worldId, poly_start + b_idx]
   # choose point c furthest along the axis orthogonal to (a-b)
   ab = wp.cross(poly_norm, a - b)
   # ap = a - poly
   max_val = float(-1e6)
   c_idx = int(0)
   for i in range(poly_count):
-    support = wp.dot(plane_pos - poly[poly_start+i], n)
-    val = wp.abs(wp.dot(a - poly[poly_start + i], ab)) + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
+    support = wp.dot(plane_pos - poly[worldId, poly_start+i], n)
+    val = wp.abs(wp.dot(a - poly[worldId, poly_start + i], ab)) + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
     if val > max_val:
       max_val = val
       c_idx = i
-  c = poly[poly_start + c_idx]
+  c = poly[worldId, poly_start + c_idx]
   # choose point d furthest from the other two triangle edges
   ac = wp.cross(poly_norm, a - c)
   bc = wp.cross(poly_norm, b - c)
@@ -137,10 +138,10 @@ def _manifold_points(
   max_val = float(-1e6)
   d_idx = int(0)
   for i in range(poly_count):
-    support = wp.dot(plane_pos - poly[poly_start+i], n)
+    support = wp.dot(plane_pos - poly[worldId, poly_start+i], n)
     val = (
-      wp.abs(wp.dot(b - poly[poly_start + i], bc))
-      + wp.abs(wp.dot(a - poly[poly_start + i], ac))
+      wp.abs(wp.dot(b - poly[worldId, poly_start + i], bc))
+      + wp.abs(wp.dot(a - poly[worldId, poly_start + i], ac))
       + sel(support > wp.max(0.0, max_support - 1e-3), 0.0, -1e6)
     )
     if val > max_val:
@@ -151,6 +152,7 @@ def _manifold_points(
 
 @wp.func
 def plane_convex(
+  worldId : int,
   planeIndex: int,
   plane: GeomInfo,
   convexIndex: int,
@@ -159,14 +161,14 @@ def plane_convex(
   result: CollisionData,
 ):
   """Calculates contacts between a plane and a convex object."""
-  vert_start = convex.vert_addr[convexIndex]
-  vert_count = convex.vert_num[convexIndex]
+  vert_start = convex.vert_addr[worldId, convexIndex]
+  vert_count = convex.vert_num[worldId, convexIndex]
 
-  convexPos = convex.pos[convexIndex]
-  convexMat = convex.mat[convexIndex]
+  convexPos = convex.pos[worldId, convexIndex]
+  convexMat = convex.mat[worldId, convexIndex]
 
-  planePos = plane.pos[planeIndex]
-  planeMat = plane.mat[planeIndex]
+  planePos = plane.pos[worldId, planeIndex]
+  planeMat = plane.mat[worldId, planeIndex]
 
   # get points in the convex frame
   plane_pos = wp.transpose(convexMat) @ (planePos - convexPos)
@@ -176,11 +178,11 @@ def plane_convex(
 
   max_support = float(-100000)
   for i in range(vert_count):
-    max_support = wp.max(max_support, wp.dot(plane_pos - convex.vert[vert_start+i], n))
+    max_support = wp.max(max_support, wp.dot(plane_pos - convex.vert[worldId, vert_start+i], n))
 
   # search for manifold points within a 1mm skin depth
   idx = wp.vec4i(0)
-  idx = _manifold_points(convex.vert, vert_start, vert_count, n, plane_pos, n, max_support)
+  idx = _manifold_points(worldId, convex.vert, vert_start, vert_count, n, plane_pos, n, max_support)
   frame = make_frame(
     wp.vec3(
       planeMat[0, 2], planeMat[1, 2], planeMat[2, 2]
@@ -188,16 +190,10 @@ def plane_convex(
   )
 
 
-
-
-
-  # Initialize return value
-  # ret = Collision4()
-
   for i in range(4):
     # Get vertex position and convert to world frame
     id = int(idx[i])
-    pos_i = convex.vert[id]
+    pos_i = convex.vert[worldId, id]
     pos_i = convexPos + pos_i @ wp.transpose(convexMat)
 
     # Compute uniqueness by comparing with previous indices
@@ -208,7 +204,7 @@ def plane_convex(
     unique = sel(count == 1, 1.0, 0.0)
 
     # Compute distance and final position
-    dist_i = sel(unique > 0.0, -wp.dot(plane_pos - convex.vert[vert_start+i], n), 1.0)
+    dist_i = sel(unique > 0.0, -wp.dot(plane_pos - convex.vert[worldId, vert_start+i], n), 1.0)
     pos_i = pos_i - 0.5 * dist_i * frame[2]
 
     # Store results
@@ -226,8 +222,8 @@ def plane_convex_kernel(
   g_arr: wp.array(dtype=int, ndim=2),
   result: CollisionData,
 ):
-  id = wp.tid()
-  plane_convex(g_arr[id, 0], plane, g_arr[id, 1], convex, 4 * id, result)
+  worldid, id = wp.tid()
+  plane_convex(worldid, g_arr[id, 0], plane, g_arr[id, 1], convex, 4 * id, result)
 
 
 # def plane_convex_launch(m: types.Model, d: types.Data, ret: Collision):
@@ -706,7 +702,7 @@ def collision(m: types.Model, d: types.Data) -> types.Data:
     # Launch collision kernel
     wp.launch(
       kernel=func,
-      dim=contact.geom.shape[0],
+      dim=[d.nworld, contact.geom.shape[0]],
       inputs=[infos, convex_infos, contact.geom],
       outputs=[c],
       device="cuda",
