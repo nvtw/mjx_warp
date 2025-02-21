@@ -24,6 +24,7 @@ import warp as wp
 
 from . import test_util
 
+BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
 
 # Helper function to initialize a box
 def init_box(min_x, min_y, min_z, max_x, max_y, max_z):
@@ -81,12 +82,15 @@ def transform_aabb(
   )
 
   # Transform center
-  new_center = rot * center + pos
+  new_center = rot @ center + pos
 
   # Return new AABB as matrix with center and full size
-  aabb[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-  aabb[1] = wp.vec3(world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0)
-  return aabb
+  result = BoxType()
+  result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
+  result[1] = wp.vec3(
+    world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0
+  )
+  return result
 
 
 def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos, rot):
@@ -201,10 +205,11 @@ class BroadPhaseTest(parameterized.TestCase):
     rot = []
     for _ in range(num_worlds * num_boxes_per_world):
       # Random position within bounding volume
-      pos_x = 0  # box_origin.x + random.random() * box_size.x
-      pos_y = 0  # box_origin.y + random.random() * box_size.y
-      pos_z = 0  # box_origin.z + random.random() * box_size.z
+      pos_x = box_origin.x + random.random() * box_size.x
+      pos_y = box_origin.y + random.random() * box_size.y
+      pos_z = box_origin.z + random.random() * box_size.z
       pos.append(wp.vec3(pos_x, pos_y, pos_z))
+      # pos.append(wp.vec3(0, 0, 0))
 
       # Random rotation matrix
       rx = random.random() * 6.28318530718  # 2*pi
@@ -213,8 +218,8 @@ class BroadPhaseTest(parameterized.TestCase):
       axis = wp.vec3(rx, ry, rz)
       axis = axis / wp.length(axis)  # normalize axis
       angle = random.random() * 6.28318530718  # random angle between 0 and 2*pi
-      # rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(axis, angle)))
-      rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(wp.vec3(1, 0, 0), float(0))))
+      rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(axis, angle)))
+      # rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(wp.vec3(1, 0, 0), float(0))))
 
     # Convert pos and rot to MultiIndexList format
     pos_multi = MultiIndexList()
