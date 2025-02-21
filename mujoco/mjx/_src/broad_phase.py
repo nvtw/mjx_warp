@@ -18,6 +18,7 @@ import warp as wp
 from .types import Model
 from .types import Data
 
+BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
 
 def broad_phase(m: Model, d: Data) -> Data:
   """Broad phase collision detection."""
@@ -44,12 +45,13 @@ def broad_phase(m: Model, d: Data) -> Data:
     )
 
     # Transform center
-    new_center = rot * center + pos
+    new_center = rot @ center + pos
 
     # Return new AABB as matrix with center and full size
-    aabb[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-    aabb[1] = wp.vec3(world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0)
-    return aabb
+    result = BoxType()
+    result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
+    result[1] = wp.vec3(world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0)
+    return result
 
   @wp.func
   def overlap(

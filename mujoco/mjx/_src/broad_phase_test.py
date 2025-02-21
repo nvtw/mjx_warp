@@ -162,8 +162,9 @@ class BroadPhaseTest(parameterized.TestCase):
     _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")
 
     # Create some test boxes
-    num_worlds = 1
-    num_boxes_per_world = 40
+    num_worlds = d.nworld
+    num_boxes_per_world = m.ngeom
+    # print(f"num_worlds: {num_worlds}, num_boxes_per_world: {num_boxes_per_world}")
 
     # Parameters for random box generation
     box_origin = wp.vec3(-10.0, -10.0, -10.0)  # Origin of the bounding volume
