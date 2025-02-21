@@ -20,6 +20,7 @@ from .types import Data
 
 BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
 
+
 def broad_phase(m: Model, d: Data) -> Data:
   """Broad phase collision detection."""
 
@@ -50,7 +51,9 @@ def broad_phase(m: Model, d: Data) -> Data:
     # Return new AABB as matrix with center and full size
     result = BoxType()
     result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-    result[1] = wp.vec3(world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0)
+    result[1] = wp.vec3(
+      world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0
+    )
     return result
 
   @wp.func
@@ -322,9 +325,7 @@ def broad_phase(m: Model, d: Data) -> Data:
       )
 
       # Sort the temporary arrays
-      wp.utils.radix_sort_pairs(
-        temp_data_start, temp_data_indexer, m.ngeom
-      )
+      wp.utils.radix_sort_pairs(temp_data_start, temp_data_indexer, m.ngeom)
 
       # Copy sorted data back
       wp.copy(

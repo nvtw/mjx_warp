@@ -159,7 +159,7 @@ class MultiIndexList:
 class BroadPhaseTest(parameterized.TestCase):
   def test_broad_phase(self):
     """Tests broad phase."""
-    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")
+    _, mjd, m, d = test_util.fixture("humanoid/n_humanoids.xml")
 
     # Create some test boxes
     num_worlds = d.nworld
@@ -201,9 +201,9 @@ class BroadPhaseTest(parameterized.TestCase):
     rot = []
     for _ in range(num_worlds * num_boxes_per_world):
       # Random position within bounding volume
-      pos_x = 0 # box_origin.x + random.random() * box_size.x
-      pos_y = 0 # box_origin.y + random.random() * box_size.y
-      pos_z = 0 # box_origin.z + random.random() * box_size.z
+      pos_x = 0  # box_origin.x + random.random() * box_size.x
+      pos_y = 0  # box_origin.y + random.random() * box_size.y
+      pos_z = 0  # box_origin.z + random.random() * box_size.z
       pos.append(wp.vec3(pos_x, pos_y, pos_z))
 
       # Random rotation matrix
@@ -214,7 +214,7 @@ class BroadPhaseTest(parameterized.TestCase):
       axis = axis / wp.length(axis)  # normalize axis
       angle = random.random() * 6.28318530718  # random angle between 0 and 2*pi
       # rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(axis, angle)))
-      rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(wp.vec3(1,0,0), float(0))))
+      rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(wp.vec3(1, 0, 0), float(0))))
 
     # Convert pos and rot to MultiIndexList format
     pos_multi = MultiIndexList()
