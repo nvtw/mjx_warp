@@ -134,6 +134,7 @@ class Data:
   subtree_com: wp.array(dtype=wp.vec3, ndim=2)
   geom_xpos: wp.array(dtype=wp.vec3, ndim=2)
   geom_xmat: wp.array(dtype=wp.mat33, ndim=2)
+  geom_aabb: wp.array(dtype=wp.types.matrix(shape=(2,3), dtype=wp.float32), ndim=2)
   site_xpos: wp.array(dtype=wp.vec3, ndim=2)
   site_xmat: wp.array(dtype=wp.mat33, ndim=2)
   cinert: wp.array(dtype=vec10, ndim=2)

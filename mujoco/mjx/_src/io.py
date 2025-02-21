@@ -158,6 +158,9 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d.subtree_com = wp.zeros((nworld, mjm.nbody), dtype=wp.vec3)
   d.geom_xpos = wp.zeros((nworld, mjm.ngeom), dtype=wp.vec3)
   d.geom_xmat = wp.zeros((nworld, mjm.ngeom), dtype=wp.mat33)
+  d.geom_aabb = wp.zeros(
+    (nworld, mjm.ngeom), wp.types.matrix(shape=(2, 3), dtype=wp.float32)
+  )
   d.site_xpos = wp.zeros((nworld, mjm.nsite), dtype=wp.vec3)
   d.site_xmat = wp.zeros((nworld, mjm.nsite), dtype=wp.mat33)
   d.cinert = wp.zeros((nworld, mjm.nbody), dtype=types.vec10)
@@ -192,6 +195,24 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1) -> types.Data:
   d.qLD_integration = wp.zeros_like(d.qLD)
   d.qLDiagInv_integration = wp.zeros_like(d.qLDiagInv)
 
+
+  # the result of the broadphase gets stored in this array
+  d.max_num_overlaps_per_world = mjm.ngeom * (mjm.ngeom - 1) // 2 # TODO: this is a hack to estimate the maximum number of overlaps per world
+  d.broadphase_pairs = wp.zeros((nworld, d.max_num_overlaps_per_world), dtype=wp.vec2i)
+  d.result_count = wp.zeros(nworld, dtype=wp.int32)
+
+  # internal broadphase tmp arrays
+  d.boxes_sorted = wp.zeros(
+    (nworld, mjm.ngeom), dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32)
+  )
+  d.data_start = wp.zeros((2 * nworld, mjm.ngeom), dtype=wp.float32)
+  d.data_end = wp.zeros((nworld, mjm.ngeom), dtype=wp.float32)
+  d.data_indexer = wp.zeros((2 * nworld, mjm.ngeom), dtype=wp.int32)  
+  d.ranges = wp.zeros((nworld, mjm.ngeom), dtype=wp.int32)
+  d.cumulative_sum = wp.zeros(nworld * mjm.ngeom, dtype=wp.int32)
+  segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
+  d.segment_indices = wp.array(segment_indices_list, dtype=int)
+
   return d
 
 
@@ -222,6 +243,9 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
     mjd.moment_colind,
   )
 
+  print(dir(mjd))
+  print(dir(mjm))
+
   d.qpos = wp.array(tile(mjd.qpos), dtype=wp.float32, ndim=2)
   d.qvel = wp.array(tile(mjd.qvel), dtype=wp.float32, ndim=2)
   d.qfrc_applied = wp.array(tile(mjd.qfrc_applied), dtype=wp.float32, ndim=2)
@@ -238,6 +262,9 @@ def put_data(mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int = 1) -> types.
   d.subtree_com = wp.array(tile(mjd.subtree_com), dtype=wp.vec3, ndim=2)
   d.geom_xpos = wp.array(tile(mjd.geom_xpos), dtype=wp.vec3, ndim=2)
   d.geom_xmat = wp.array(tile(mjd.geom_xmat), dtype=wp.mat33, ndim=2)
+  d.geom_aabb = wp.array(
+    tile(mjd.geom_aabb), dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2
+  )
   d.site_xpos = wp.array(tile(mjd.site_xpos), dtype=wp.vec3, ndim=2)
   d.site_xmat = wp.array(tile(mjd.site_xmat), dtype=wp.mat33, ndim=2)
   d.cinert = wp.array(tile(mjd.cinert), dtype=types.vec10, ndim=2)
