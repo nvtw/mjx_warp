@@ -18,9 +18,9 @@ import warp as wp
 from .types import Model
 from .types import Data
 
+
 def broad_phase(m: Model, d: Data) -> Data:
   """Broad phase collision detection."""
-
 
   # TODO: Verify that this is corect
   @wp.func
@@ -34,39 +34,22 @@ def broad_phase(m: Model, d: Data) -> Data:
     half_extents = aabb[1] * 0.5
 
     # Get absolute values of rotation matrix columns
-    right = wp.vec3(
-      wp.abs(rot[0,0]), 
-      wp.abs(rot[0,1]), 
-      wp.abs(rot[0,2])
-    )
-    up = wp.vec3(
-      wp.abs(rot[1,0]),
-      wp.abs(rot[1,1]),
-      wp.abs(rot[1,2])
-    )
-    forward = wp.vec3(
-      wp.abs(rot[2,0]),
-      wp.abs(rot[2,1]), 
-      wp.abs(rot[2,2])
-    )
+    right = wp.vec3(wp.abs(rot[0, 0]), wp.abs(rot[0, 1]), wp.abs(rot[0, 2]))
+    up = wp.vec3(wp.abs(rot[1, 0]), wp.abs(rot[1, 1]), wp.abs(rot[1, 2]))
+    forward = wp.vec3(wp.abs(rot[2, 0]), wp.abs(rot[2, 1]), wp.abs(rot[2, 2]))
 
     # Compute world space half-extents
     world_extents = (
-      right * half_extents.x + 
-      up * half_extents.y + 
-      forward * half_extents.z
+      right * half_extents.x + up * half_extents.y + forward * half_extents.z
     )
 
     # Transform center
     new_center = rot * center + pos
 
     # Return new AABB as matrix with center and full size
-    return wp.mat(rows=2, cols=3)([
-      new_center.x, new_center.y, new_center.z,
-      world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0
-    ])
-
-
+    aabb[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
+    aabb[1] = wp.vec3(world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0)
+    return aabb
 
   @wp.func
   def overlap(
@@ -96,7 +79,9 @@ def broad_phase(m: Model, d: Data) -> Data:
 
   @wp.kernel
   def broad_phase_project_boxes_onto_sweep_direction_kernel(
-    boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2),
+    boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1),
+    box_translations: wp.array(dtype=wp.vec3, ndim=2),
+    box_rotations: wp.array(dtype=wp.mat33, ndim=2),
     data_start: wp.array(dtype=wp.float32, ndim=2),
     data_end: wp.array(dtype=wp.float32, ndim=2),
     data_indexer: wp.array(dtype=wp.int32, ndim=2),
@@ -109,7 +94,8 @@ def broad_phase(m: Model, d: Data) -> Data:
     if i == 0:
       result_count[worldId] = 0  # Initialize result count to 0
 
-    box = boxes[worldId, i]  # box is a vector6
+    box = boxes[i]  # box is a vector6
+    box = transform_aabb(box, box_translations[worldId, i], box_rotations[worldId, i])
     box_center = box[0]
     box_size = box[1]
     center = wp.dot(direction, box_center)
@@ -123,7 +109,9 @@ def broad_phase(m: Model, d: Data) -> Data:
 
   @wp.kernel
   def reorder_bounding_boxes_kernel(
-    boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2),
+    boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1),
+    box_translations: wp.array(dtype=wp.vec3, ndim=2),
+    box_rotations: wp.array(dtype=wp.mat33, ndim=2),
     boxes_sorted: wp.array(
       dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2
     ),
@@ -135,7 +123,10 @@ def broad_phase(m: Model, d: Data) -> Data:
     mapped = data_indexer[worldId, i]
 
     # Get the box from the original boxes array
-    box = boxes[worldId, mapped]
+    box = boxes[mapped]
+    box = transform_aabb(
+      box, box_translations[worldId, mapped], box_rotations[worldId, mapped]
+    )
 
     # Reorder the box into the sorted array
     boxes_sorted[worldId, i] = box
@@ -272,9 +263,11 @@ def broad_phase(m: Model, d: Data) -> Data:
 
   wp.launch(
     kernel=broad_phase_project_boxes_onto_sweep_direction_kernel,
-    dim=(d.num_worlds, d.num_boxes_per_world),
+    dim=(d.nworld, m.ngeom),
     inputs=[
-      d.geom_aabb,
+      m.geom_aabb,
+      d.geom_xpos,
+      d.geom_xmat,
       d.data_start,
       d.data_end,
       d.data_indexer,
@@ -291,22 +284,22 @@ def broad_phase(m: Model, d: Data) -> Data:
     wp.utils.segmented_sort_pairs(
       d.data_start,
       d.data_indexer,
-      d.num_boxes_per_world * d.num_worlds,
+      m.ngeom * d.nworld,
       d.segment_indices,
-      d.num_worlds,
+      d.nworld,
     )
   else:
     # Sort each world's segment separately
-    for world_id in range(d.num_worlds):
-      start_idx = world_id * d.num_boxes_per_world
+    for world_id in range(d.nworld):
+      start_idx = world_id * m.ngeom
 
       # Create temporary arrays for sorting
       temp_data_start = wp.zeros(
-        d.num_boxes_per_world * 2,
+        m.ngeom * 2,
         dtype=d.data_start.dtype,
       )
       temp_data_indexer = wp.zeros(
-        d.num_boxes_per_world * 2,
+        m.ngeom * 2,
         dtype=d.data_indexer.dtype,
       )
 
@@ -316,19 +309,19 @@ def broad_phase(m: Model, d: Data) -> Data:
         d.data_start,
         0,
         start_idx,
-        d.num_boxes_per_world,
+        m.ngeom,
       )
       wp.copy(
         temp_data_indexer,
         d.data_indexer,
         0,
         start_idx,
-        d.num_boxes_per_world,
+        m.ngeom,
       )
 
       # Sort the temporary arrays
       wp.utils.radix_sort_pairs(
-        temp_data_start, temp_data_indexer, d.num_boxes_per_world
+        temp_data_start, temp_data_indexer, m.ngeom
       )
 
       # Copy sorted data back
@@ -337,27 +330,27 @@ def broad_phase(m: Model, d: Data) -> Data:
         temp_data_start,
         start_idx,
         0,
-        d.num_boxes_per_world,
+        m.ngeom,
       )
       wp.copy(
         d.data_indexer,
         temp_data_indexer,
         start_idx,
         0,
-        d.num_boxes_per_world,
+        m.ngeom,
       )
 
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
-    dim=(d.num_worlds, d.num_boxes_per_world),
-    inputs=[d.geom_aabb, d.boxes_sorted, d.data_indexer],
+    dim=(d.nworld, m.ngeom),
+    inputs=[m.geom_aabb, d.geom_xpos, d.geom_xmat, d.boxes_sorted, d.data_indexer],
   )
 
   wp.launch(
     kernel=broad_phase_sweep_and_prune_prepare_kernel,
-    dim=(d.num_worlds, d.num_boxes_per_world),
+    dim=(d.nworld, m.ngeom),
     inputs=[
-      d.num_boxes_per_world,
+      m.ngeom,
       d.data_start,
       d.data_end,
       d.data_indexer,
@@ -369,14 +362,14 @@ def broad_phase(m: Model, d: Data) -> Data:
   wp.utils.array_scan(d.ranges.reshape(-1), d.cumulative_sum, True)
 
   # Estimate how many overlap checks need to be done - assumes each box has to be compared to 5 other boxes (and batched over all worlds)
-  num_sweep_threads = 5 * d.num_worlds * d.num_boxes_per_world
+  num_sweep_threads = 5 * d.nworld * m.ngeom
   wp.launch(
     kernel=broad_phase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
     inputs=[
       num_sweep_threads,
-      d.num_worlds * d.num_boxes_per_world,
-      d.num_boxes_per_world,
+      d.nworld * m.ngeom,
+      m.ngeom,
       d.max_num_overlaps_per_world,
       d.cumulative_sum,
       d.data_indexer,
