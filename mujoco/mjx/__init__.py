@@ -15,6 +15,7 @@
 
 """Public API for MJX."""
 
+from ._src.narrow_phase import narrow_phase
 from ._src.broad_phase import broad_phase
 from ._src.forward import euler
 from ._src.forward import forward
