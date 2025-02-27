@@ -390,4 +390,11 @@ def broad_phase(m: Model, d: Data) -> Data:
   return d
 
 def collision(m: Model, d: Data) -> Data:
-  pass
+  
+  # broadphase
+
+  # rearrange into per-type candidate contact arrays
+
+  # narrowphase per contact type
+
+  # rearrange into per-world contact arrays
