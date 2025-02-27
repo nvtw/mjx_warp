@@ -17,28 +17,9 @@ import warp as wp
 
 from .types import Model
 from .types import Data
+from .types import Contact
 
 BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
-
-
-# only temporary, seems to already exist in MR: https://github.com/erikfrey/mjx_warp/pull/26/files
-@wp.struct
-class Contact:
-  dist: wp.array(dtype=wp.float32, ndim=2)
-  pos: wp.array(dtype=wp.vec3f, ndim=2)
-  frame: wp.array(dtype=wp.mat33f, ndim=2)
-  includemargin: wp.array(dtype=wp.float32, ndim=2)
-  friction: wp.array(dtype=wp.float32, ndim=3)
-  solref: wp.array(dtype=wp.float32, ndim=3)
-  solreffriction: wp.array(dtype=wp.float32, ndim=3)
-  solimp: wp.array(dtype=wp.float32, ndim=3)
-  dim: wp.array(dtype=wp.int32, ndim=2)
-  geom: wp.array(dtype=wp.int32, ndim=3)
-  efc_address: wp.array(dtype=wp.int32, ndim=2)
-
-
-
-
 
 
 @wp.func
