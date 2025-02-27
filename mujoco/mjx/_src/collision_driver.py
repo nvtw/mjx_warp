@@ -404,7 +404,7 @@ def contacts_to_world_condim(m: Model, d: Data) -> Data:
 def collision(m: Model, d: Data) -> Data:
   """Collision detection."""
   broad_phase(m, d) # per-world
-  filtering(m, d) # drop unnecessary contacts 
+  filtering(m, d) # drop unwanted contacts - take advantage of the sorting putting invalid keys at the end.
   overlaps_to_type_buckets(m, d) # per-world -> per-pair type
   narrow_phase(m, d) # per-pair type
   contacts_to_world_condim(m, d) # per-pair type -> per-world
