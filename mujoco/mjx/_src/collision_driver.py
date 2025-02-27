@@ -388,3 +388,6 @@ def broad_phase(m: Model, d: Data) -> Data:
   )
 
   return d
+
+def collision(m: Model, d: Data) -> Data:
+  pass
