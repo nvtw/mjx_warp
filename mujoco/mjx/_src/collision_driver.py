@@ -17,15 +17,99 @@ import warp as wp
 
 from .types import Model
 from .types import Data
+from .types import Contact
+from .types import BoxType
+from .types import GeomType
+from .collision_functions import plane_sphere
+from .collision_functions import plane_capsule
+from .collision_functions import plane_convex
+from .collision_functions import plane_ellipsoid
+from .collision_functions import plane_cylinder
+from .collision_functions import plane_convex
+from .collision_functions import hfield_sphere
+from .collision_functions import hfield_capsule
+from .collision_functions import hfield_convex
+from .collision_functions import sphere_sphere
+from .collision_functions import sphere_capsule
+from .collision_functions import sphere_cylinder
+from .collision_functions import sphere_ellipsoid
+from .collision_functions import sphere_convex
+from .collision_functions import capsule_capsule
+from .collision_functions import capsule_convex
+from .collision_functions import capsule_ellipsoid
+from .collision_functions import capsule_cylinder
+from .collision_functions import capsule_convex
+from .collision_functions import ellipsoid_ellipsoid
+from .collision_functions import ellipsoid_cylinder
+from .collision_functions import cylinder_cylinder
+from .collision_functions import box_box
+from .collision_functions import convex_convex
 
-BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
+# TODO: combine the two lists, it matters that the order is the same!
+_COLLISION_BUCKET_KEY = {
+    (GeomType.PLANE, GeomType.SPHERE):        0, #plane_sphere,
+    (GeomType.PLANE, GeomType.CAPSULE):       1, #plane_capsule,
+    (GeomType.PLANE, GeomType.BOX):           2, #plane_convex,
+    (GeomType.PLANE, GeomType.ELLIPSOID):     3, #plane_ellipsoid,
+    (GeomType.PLANE, GeomType.CYLINDER):      4, #plane_cylinder,
+    (GeomType.PLANE, GeomType.MESH):          5, #plane_convex,
+    (GeomType.HFIELD, GeomType.SPHERE):       6, #hfield_sphere,
+    (GeomType.HFIELD, GeomType.CAPSULE):      7, #hfield_capsule,
+    (GeomType.HFIELD, GeomType.BOX):          8, #hfield_convex,
+    (GeomType.HFIELD, GeomType.MESH):         9, #hfield_convex,
+    (GeomType.SPHERE, GeomType.SPHERE):       10, #sphere_sphere,
+    (GeomType.SPHERE, GeomType.CAPSULE):      11, #sphere_capsule,
+    (GeomType.SPHERE, GeomType.CYLINDER):     12, #sphere_cylinder,
+    (GeomType.SPHERE, GeomType.ELLIPSOID):    13, #sphere_ellipsoid,
+    (GeomType.SPHERE, GeomType.BOX):          14, #sphere_convex,
+    (GeomType.SPHERE, GeomType.MESH):         15, #sphere_convex,
+    (GeomType.CAPSULE, GeomType.CAPSULE):     16, #capsule_capsule,
+    (GeomType.CAPSULE, GeomType.BOX):         17, #capsule_convex,
+    (GeomType.CAPSULE, GeomType.ELLIPSOID):   18, #capsule_ellipsoid,
+    (GeomType.CAPSULE, GeomType.CYLINDER):    19, #capsule_cylinder,
+    (GeomType.CAPSULE, GeomType.MESH):        20, #capsule_convex,
+    (GeomType.ELLIPSOID, GeomType.ELLIPSOID): 21, #ellipsoid_ellipsoid,
+    (GeomType.ELLIPSOID, GeomType.CYLINDER):  22, #ellipsoid_cylinder,
+    (GeomType.CYLINDER, GeomType.CYLINDER):   23, #cylinder_cylinder,
+    (GeomType.BOX, GeomType.BOX):             24, #box_box,
+    (GeomType.BOX, GeomType.MESH):            25, #convex_convex,
+    (GeomType.MESH, GeomType.MESH):           26, #convex_convex,
+}
 
-
+_COLLISION_FUNCS = {
+  plane_sphere,
+  plane_capsule,
+  plane_convex,
+  plane_ellipsoid,
+  plane_cylinder,
+  plane_convex,
+  hfield_sphere,
+  hfield_capsule,
+  hfield_convex,
+  hfield_convex,
+  sphere_sphere,
+  sphere_capsule,
+  sphere_cylinder,
+  sphere_ellipsoid,
+  sphere_convex,
+  sphere_convex,
+  capsule_capsule,
+  capsule_convex,
+  capsule_ellipsoid,
+  capsule_cylinder,
+  capsule_convex,
+  ellipsoid_ellipsoid,
+  ellipsoid_cylinder,
+  cylinder_cylinder,
+  box_box,
+  convex_convex,
+  convex_convex,
+}
 
 # TODO: Verify that this is corect
 @wp.func
 def transform_aabb(
-  aabb: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
+  aabb: BoxType,
   pos: wp.vec3,
   rot: wp.mat33,
 ) -> wp.types.matrix(shape=(2, 3), dtype=wp.float32):
@@ -262,7 +346,7 @@ def broad_phase_sweep_and_prune_kernel(
 
 
 
-def broad_phase(m: Model, d: Data) -> Data:
+def broad_phase(m: Model, d: Data):
   """Broad phase collision detection."""
 
   # Directional vectors for sweep
@@ -387,25 +471,28 @@ def broad_phase(m: Model, d: Data) -> Data:
     ],
   )
 
-  return d
-
 def filtering(m: Model, d: Data) -> Data:
-  # takes overlap pairs and filters then, assigns pairs to type-pairs
+  # takes overlap pairs and filters them, assigns pairs to type-pairs
+
+  # this is the place where we do the stuff done in the MJX geom_groups/contact_groups functions
   pass
 
 def overlaps_to_type_buckets(m: Model, d: Data) -> Data:
+  # pair type key is _COLLISION_BUCKET_KEY
+
   # takes the final list of pairs, puts them into buckets per type-pair.
   # maintain counts per type-pair.
   # make sure the worldid is taken along for the ride postprocessing.
+
+  # is this the place where we also fill in per-pair options from the model?
   pass
 
 def narrow_phase(m: Model, d: Data) -> Data:
-  # loop over all contact types, process ones with overlaps.
-  # this might lead to a lot of unnecessary launches right now because 
-  # we cannot control this from the host?
-  #
-  # TODO(team) - find a better solution. Warp-specialized kernels? Indirect launch?
-  pass
+
+  for i in range(len(_COLLISION_FUNCS)):
+    # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
+    func = _COLLISION_FUNCS[i]
+    func(m, d)
 
 def contacts_to_world_postprocess(m: Model, d: Data) -> Data:
   # takes the contact pairs for each pair type, and
@@ -416,6 +503,11 @@ def contacts_to_world_postprocess(m: Model, d: Data) -> Data:
 
 def collision(m: Model, d: Data) -> Data:
   """Collision detection."""
+
+  # do we need to have a stage here for the specific per-pair collisions?
+  # is it allowed to have per-pair + global collisions?
+  # maybe we can preprocess that and handle it in put_model?
+
   broad_phase(m, d) # per-world
   filtering(m, d) # drop unwanted contacts - take advantage of the sorting putting invalid keys at the end.
   overlaps_to_type_buckets(m, d) # per-world -> per-pair type
