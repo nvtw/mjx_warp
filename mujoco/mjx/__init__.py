@@ -15,7 +15,6 @@
 
 """Public API for MJX."""
 
-
 from ._src.broad_phase import broad_phase
 from ._src.constraint import make_constraint
 from ._src.forward import euler

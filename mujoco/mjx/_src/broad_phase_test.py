@@ -163,7 +163,7 @@ class MultiIndexList:
 class BroadPhaseTest(parameterized.TestCase):
   def test_broad_phase(self):
     """Tests broad phase."""
-    _, mjd, m, d = test_util.fixture("humanoid/n_humanoids.xml")
+    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")
 
     # Create some test boxes
     num_worlds = d.nworld
@@ -171,8 +171,8 @@ class BroadPhaseTest(parameterized.TestCase):
     # print(f"num_worlds: {num_worlds}, num_boxes_per_world: {num_boxes_per_world}")
 
     # Parameters for random box generation
-    box_origin = wp.vec3(-10.0, -10.0, -10.0)  # Origin of the bounding volume
-    box_size = wp.vec3(20.0, 20.0, 20.0)  # Size of the bounding volume
+    sample_space_origin = wp.vec3(-10.0, -10.0, -10.0)  # Origin of the bounding volume
+    sample_space_size = wp.vec3(20.0, 20.0, 20.0)  # Size of the bounding volume
     min_edge_length = 0.5  # Minimum edge length of random boxes
     max_edge_length = 5.0  # Maximum edge length of random boxes
 
@@ -186,9 +186,9 @@ class BroadPhaseTest(parameterized.TestCase):
     # Generate random boxes for each world
     for _ in range(num_boxes_per_world):
       # Generate random position within bounding volume
-      pos_x = box_origin.x + random.random() * box_size.x
-      pos_y = box_origin.y + random.random() * box_size.y
-      pos_z = box_origin.z + random.random() * box_size.z
+      pos_x = sample_space_origin.x + random.random() * sample_space_size.x
+      pos_y = sample_space_origin.y + random.random() * sample_space_size.y
+      pos_z = sample_space_origin.z + random.random() * sample_space_size.z
 
       # Generate random box dimensions between min and max edge lengths
       size_x = min_edge_length + random.random() * (max_edge_length - min_edge_length)
@@ -205,9 +205,9 @@ class BroadPhaseTest(parameterized.TestCase):
     rot = []
     for _ in range(num_worlds * num_boxes_per_world):
       # Random position within bounding volume
-      pos_x = box_origin.x + random.random() * box_size.x
-      pos_y = box_origin.y + random.random() * box_size.y
-      pos_z = box_origin.z + random.random() * box_size.z
+      pos_x = sample_space_origin.x + random.random() * sample_space_size.x
+      pos_y = sample_space_origin.y + random.random() * sample_space_size.y
+      pos_z = sample_space_origin.z + random.random() * sample_space_size.z
       pos.append(wp.vec3(pos_x, pos_y, pos_z))
       # pos.append(wp.vec3(0, 0, 0))
 
