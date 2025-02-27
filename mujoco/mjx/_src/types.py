@@ -367,3 +367,4 @@ class Data:
   ranges: wp.array(dtype=wp.int32, ndim=2)
   cumulative_sum: wp.array(dtype=wp.int32, ndim=1)
   segment_indices: wp.array(dtype=wp.int32, ndim=1)
+  geom_aabb: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1)
