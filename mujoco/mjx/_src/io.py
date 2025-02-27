@@ -195,10 +195,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.actuator_dyntype = wp.array(mjm.actuator_dyntype, dtype=wp.int32, ndim=1)
   m.actuator_dynprm = wp.array(mjm.actuator_dynprm, dtype=types.vec10f, ndim=1)
 
-  m.geom_aabb = wp.array(
-    mjm.geom_aabb, dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1
-  )
-
   return m
 
 
@@ -311,6 +307,10 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, njmax: int = -1) -> types.Da
   d.cumulative_sum = wp.zeros(nworld * mjm.ngeom, dtype=wp.int32)
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
+
+  d.geom_aabb = wp.array(
+    mjm.geom_aabb, dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1
+  )
 
   return d
 
@@ -481,5 +481,9 @@ def put_data(
   d.cumulative_sum = wp.zeros(nworld * mjm.ngeom, dtype=wp.int32)
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
+
+  d.geom_aabb = wp.array(
+    mjm.geom_aabb, dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1
+  )
 
   return d

@@ -21,7 +21,6 @@ from .types import Data
 BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
 
 
-
 # TODO: Verify that this is corect
 @wp.func
 def transform_aabb(
@@ -43,7 +42,7 @@ def transform_aabb(
   absRot[2, 0] = wp.abs(rot[2, 0])
   absRot[2, 1] = wp.abs(rot[2, 1])
   absRot[2, 2] = wp.abs(rot[2, 2])
-  world_extents = extents * absRot 
+  world_extents = extents * absRot
 
   # Transform center
   new_center = rot @ center + pos
@@ -51,10 +50,9 @@ def transform_aabb(
   # Return new AABB as matrix with center and full size
   result = BoxType()
   result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-  result[1] = wp.vec3(
-    world_extents.x, world_extents.y, world_extents.z
-  )
+  result[1] = wp.vec3(world_extents.x, world_extents.y, world_extents.z)
   return result
+
 
 @wp.func
 def overlap(
@@ -82,6 +80,7 @@ def overlap(
     or b_min.z > a_max.z
   )
 
+
 @wp.kernel
 def broad_phase_project_boxes_onto_sweep_direction_kernel(
   boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1),
@@ -108,18 +107,17 @@ def broad_phase_project_boxes_onto_sweep_direction_kernel(
   data_start[worldId, i] = f
   data_end[worldId, i] = center + d
   data_indexer[worldId, i] = i
-  
+
   if i == 0:
     result_count[worldId] = 0  # Initialize result count to 0
+
 
 @wp.kernel
 def reorder_bounding_boxes_kernel(
   boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1),
   box_translations: wp.array(dtype=wp.vec3, ndim=2),
   box_rotations: wp.array(dtype=wp.mat33, ndim=2),
-  boxes_sorted: wp.array(
-    dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2
-  ),
+  boxes_sorted: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2),
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
 ):
   worldId, i = wp.tid()
@@ -135,6 +133,7 @@ def reorder_bounding_boxes_kernel(
 
   # Reorder the box into the sorted array
   boxes_sorted[worldId, i] = box
+
 
 @wp.func
 def find_first_greater_than(
@@ -152,6 +151,7 @@ def find_first_greater_than(
       low = mid + 1
   return low
 
+
 @wp.kernel
 def broad_phase_sweep_and_prune_prepare_kernel(
   num_boxes_per_world: int,
@@ -166,9 +166,7 @@ def broad_phase_sweep_and_prune_prepare_kernel(
   idx1 = indexer[worldId, i]
 
   end = data_end[worldId, idx1]
-  limit = find_first_greater_than(
-    worldId, data_start, end, i + 1, num_boxes_per_world
-  )
+  limit = find_first_greater_than(worldId, data_start, end, i + 1, num_boxes_per_world)
   limit = wp.min(num_boxes_per_world - 1, limit)
 
   # Calculate the range of boxes for the sweep and prune process
@@ -176,6 +174,7 @@ def broad_phase_sweep_and_prune_prepare_kernel(
 
   # Store the cumulative sum for the current box
   cumulative_sum[worldId, i] = count
+
 
 @wp.func
 def find_right_most_index_int(
@@ -188,6 +187,7 @@ def find_right_most_index_int(
     else:
       low = mid + 1
   return high
+
 
 @wp.func
 def find_indices(
@@ -206,6 +206,7 @@ def find_indices(
 
   return wp.vec2i(i, j)
 
+
 @wp.kernel
 def broad_phase_sweep_and_prune_kernel(
   num_threads: int,
@@ -216,9 +217,7 @@ def broad_phase_sweep_and_prune_kernel(
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
   data_result: wp.array(dtype=wp.vec2i, ndim=2),
   result_count: wp.array(dtype=wp.int32, ndim=1),
-  boxes_sorted: wp.array(
-    dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2
-  ),
+  boxes_sorted: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2),
 ):
   threadId = wp.tid()  # Get thread ID
   if length > 0:
@@ -261,21 +260,20 @@ def broad_phase_sweep_and_prune_kernel(
     threadId += num_threads
 
 
-
 def broad_phase(m: Model, d: Data) -> Data:
   """Broad phase collision detection."""
 
   # Directional vectors for sweep
   # TODO: Improve picking of direction
   direction = wp.vec3(0.5935, 0.7790, 0.1235)
-  direction = direction / wp.length(direction)
+  direction = wp.normalize(direction)
   abs_dir = wp.vec3(abs(direction.x), abs(direction.y), abs(direction.z))
 
   wp.launch(
     kernel=broad_phase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[
-      m.geom_aabb,
+      d.geom_aabb,
       d.geom_xpos,
       d.geom_xmat,
       d.data_start,
@@ -351,7 +349,7 @@ def broad_phase(m: Model, d: Data) -> Data:
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[m.geom_aabb, d.geom_xpos, d.geom_xmat, d.boxes_sorted, d.data_indexer],
+    inputs=[d.geom_aabb, d.geom_xpos, d.geom_xmat, d.boxes_sorted, d.data_indexer],
   )
 
   wp.launch(
