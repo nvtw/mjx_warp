@@ -268,7 +268,6 @@ class Model:
   actuator_actadr: wp.array(dtype=wp.int32, ndim=1)
   actuator_dyntype: wp.array(dtype=wp.int32, ndim=1)
   actuator_dynprm: wp.array(dtype=vec10f, ndim=1)
-  geom_aabb: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1)
 
 @wp.struct
 class Contact:

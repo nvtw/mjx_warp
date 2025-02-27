@@ -195,10 +195,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.actuator_dyntype = wp.array(mjm.actuator_dyntype, dtype=wp.int32, ndim=1)
   m.actuator_dynprm = wp.array(mjm.actuator_dynprm, dtype=types.vec10f, ndim=1)
 
-  m.geom_aabb = wp.array(
-    mjm.geom_aabb, dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1
-  )
-
   return m
 
 
