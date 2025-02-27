@@ -389,12 +389,22 @@ def broad_phase(m: Model, d: Data) -> Data:
 
   return d
 
+def filtering(m: Model, d: Data) -> Data:
+  pass
+
+def overlaps_to_type_buckets(m: Model, d: Data) -> Data:
+  pass
+
+def narrow_phase(m: Model, d: Data) -> Data:
+  pass
+
+def contacts_to_world_condim(m: Model, d: Data) -> Data:
+  pass
+
 def collision(m: Model, d: Data) -> Data:
-  
-  # broadphase
-
-  # rearrange into per-type candidate contact arrays
-
-  # narrowphase per contact type
-
-  # rearrange into per-world contact arrays
+  """Collision detection."""
+  broad_phase(m, d) # per-world
+  filtering(m, d) # drop unnecessary contacts 
+  overlaps_to_type_buckets(m, d) # per-world -> per-pair type
+  narrow_phase(m, d) # per-pair type
+  contacts_to_world_condim(m, d) # per-pair type -> per-world
