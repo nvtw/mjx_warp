@@ -483,6 +483,9 @@ def overlaps_to_type_buckets(m: Model, d: Data) -> Data:
 
 def narrow_phase(m: Model, d: Data) -> Data:
 
+  # we need to figure out how to keep the overhead of this small - not launching anything
+  # for pair types without collisions, as well as updating the launch dimensions.
+
   for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func = _COLLISION_FUNCS[i]
