@@ -487,6 +487,9 @@ def narrow_phase(m: Model, d: Data) -> Data:
   # for pair types without collisions, as well as updating the launch dimensions.
 
   for i in range(len(_COLLISION_FUNCS)):
+    # we will maintain a list of number of overlaps per-pair type on GPU
+    # and a base index of the first geom pair that needs to be processed
+
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func = _COLLISION_FUNCS[i]
     func(m, d)
