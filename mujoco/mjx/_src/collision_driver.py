@@ -390,15 +390,28 @@ def broad_phase(m: Model, d: Data) -> Data:
   return d
 
 def filtering(m: Model, d: Data) -> Data:
+  # takes overlap pairs and filters then, assigns pairs to type-pairs
   pass
 
 def overlaps_to_type_buckets(m: Model, d: Data) -> Data:
+  # takes the final list of pairs, puts them into buckets per type-pair.
+  # maintain counts per type-pair.
+  # make sure the worldid is taken along for the ride postprocessing.
   pass
 
 def narrow_phase(m: Model, d: Data) -> Data:
+  # loop over all contact types, process ones with overlaps.
+  # this might lead to a lot of unnecessary launches right now because 
+  # we cannot control this from the host?
+  #
+  # TODO(team) - find a better solution. Warp-specialized kernels? Indirect launch?
   pass
 
-def contacts_to_world_condim(m: Model, d: Data) -> Data:
+def contacts_to_world_postprocess(m: Model, d: Data) -> Data:
+  # takes the contact pairs for each pair type, and
+  # - create the batched contact arrays (per-world)
+  # - organize them by constraint dimension
+  # - dumplicate properties for contacts with multiple points
   pass
 
 def collision(m: Model, d: Data) -> Data:
@@ -407,4 +420,4 @@ def collision(m: Model, d: Data) -> Data:
   filtering(m, d) # drop unwanted contacts - take advantage of the sorting putting invalid keys at the end.
   overlaps_to_type_buckets(m, d) # per-world -> per-pair type
   narrow_phase(m, d) # per-pair type
-  contacts_to_world_condim(m, d) # per-pair type -> per-world
+  contacts_to_world_postprocess(m, d) # per-pair type -> per-world
