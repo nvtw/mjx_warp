@@ -26,7 +26,6 @@ from .types import array2df
 from .types import array3df
 from .collision_functions import plane_sphere
 from .collision_functions import plane_capsule
-from .collision_functions import plane_convex
 from .collision_functions import plane_ellipsoid
 from .collision_functions import plane_cylinder
 from .collision_functions import plane_convex
@@ -162,18 +161,6 @@ def get_dyn_body_aamm(
 
 @wp.kernel
 def init_kernel(
-    # max_contact_points: int,
-    # nenv: int,
-    # dist: wp.array(dtype=wp.float32),
-    # pos: wp.array(dtype=wp.vec3),
-    # normal: wp.array(dtype=wp.vec3),
-    # g1: wp.array(dtype=wp.int32),
-    # g2: wp.array(dtype=wp.int32),
-    # includemargin: wp.array(dtype=wp.float32),
-    # friction: wp.array(dtype=wp.float32),
-    # solref: wp.array(dtype=wp.float32),
-    # solreffriction: wp.array(dtype=wp.float32),
-    # solimp: wp.array(dtype=wp.float32),
     contact: Contact,
 ):
     world_id, contact_id = wp.tid()    
@@ -579,7 +566,7 @@ def narrowphase(m: Model, d: Data):
   for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func, group_key = _COLLISION_FUNCS[i]
-    func(m, d)#, group_key)
+    func(m, d)
 
 def get_contact_solver_params(m: Model, d: Data):
 
