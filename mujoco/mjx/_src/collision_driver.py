@@ -195,16 +195,10 @@ def overlap(
   boxes: wp.array(dtype=wp.vec3, ndim=3),
 ) -> bool:
   # Extract centers and sizes
-  a_center = boxes[world_id, a, 0]
-  a_size = boxes[world_id, a, 1]
-  b_center = boxes[world_id, b, 0]
-  b_size = boxes[world_id, b, 1]
-
-  # Calculate min/max from center and size
-  a_min = a_center - 0.5 * a_size
-  a_max = a_center + 0.5 * a_size
-  b_min = b_center - 0.5 * b_size
-  b_max = b_center + 0.5 * b_size
+  a_min = boxes[world_id, a, 0]
+  a_max = boxes[world_id, a, 1]
+  b_min = boxes[world_id, b, 0]
+  b_max = boxes[world_id, b, 1]
 
   return not (
     a_min.x > b_max.x
@@ -259,6 +253,7 @@ def reorder_bounding_boxes_kernel(
   # Get the box from the original boxes array
   box_min = boxes[worldId, mapped, 0]
   box_max = boxes[worldId, mapped, 1]
+
   # box = transform_aabb(
   #   box, box_translations[worldId, mapped], box_rotations[worldId, mapped]
   # )
@@ -673,8 +668,6 @@ def init(m: Model, d: Data):
     inputs=[d.contact],
   )
 
-  pass
-
 
 def broadphase(m: Model, d: Data):
   # broadphase collision detection
@@ -737,7 +730,7 @@ def narrowphase(m: Model, d: Data):
   for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func, group_key = _COLLISION_FUNCS[i]
-    func(m, d)
+    func(m, d, group_key)
 
 
 def get_contact_solver_params(m: Model, d: Data):
