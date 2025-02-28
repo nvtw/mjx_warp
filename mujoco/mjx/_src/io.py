@@ -197,7 +197,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
   m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
   m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
-  m.geom_rbound = wp.array(mjm.geom_rbound, dtype=wp.vec3, ndim=2)
+  m.geom_rbound = wp.array(mjm.geom_rbound, dtype=wp.float32, ndim=1)
 
   return m
 

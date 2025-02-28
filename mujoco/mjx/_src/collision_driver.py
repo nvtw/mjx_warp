@@ -18,7 +18,6 @@ import warp as wp
 from .types import Model
 from .types import Data
 from .types import Contact
-from .types import BoxType
 from .types import GeomType
 from .types import MJ_MINVAL
 from .types import MJ_NREF
