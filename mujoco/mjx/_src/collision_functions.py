@@ -96,3 +96,7 @@ def convex_convex(m: Model, d: Data):
 
 def convex_convex(m: Model, d: Data):
     pass
+
+# dispatch function
+def narrowphase(m: Model, d: Data):
+    pass
