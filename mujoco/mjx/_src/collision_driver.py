@@ -485,21 +485,21 @@ def narrowphase(m: Model, d: Data):
   for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func, group_key = _COLLISION_FUNCS[i]
-    func(m, d, group_key)
+    func(m, d)#, group_key)
 
 def get_contact_solver_params(m: Model, d: Data):
 
   @wp.kernel
   def get_contact_solver_params(
-    geom: array2df,
-    geom_priority: wp.array(dtype=int),
-    geom_solmix: array2df,
+    geom: wp.array3d(dtype=wp.int32),
+    geom_priority: wp.array(dtype=wp.int32),
+    geom_solmix: wp.array(dtype=wp.float32),
     geom_friction: array2df,
     geom_solref: array2df,
     geom_solimp: array2df,
-    geom_margin: array2df,
-    geom_gap: wp.array(dtype=float),
-    world_contact_counter: wp.array(dtype=int),
+    geom_margin: wp.array(dtype=wp.float32),
+    geom_gap: wp.array(dtype=wp.float32),
+    world_contact_counter: wp.array(dtype=wp.int32),
     # outputs
     includemargin: array2df,
     friction: array3df,

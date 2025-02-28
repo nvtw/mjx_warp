@@ -39,6 +39,7 @@ class ConvexTest(absltest.TestCase):
     m = mujoco.MjModel.from_xml_string(self._BOX_PLANE)
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
     d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
 
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)

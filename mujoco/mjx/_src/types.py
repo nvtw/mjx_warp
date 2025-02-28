@@ -242,7 +242,7 @@ class Model:
   geom_bodyid: wp.array(dtype=wp.int32, ndim=1)
   geom_pos: wp.array(dtype=wp.vec3, ndim=1)
   geom_quat: wp.array(dtype=wp.quat, ndim=1)
-  geom_priority: wp.array(dtype=wp.float32, ndim=1)
+  geom_priority: wp.array(dtype=wp.int32, ndim=1)
   geom_solmix: wp.array(dtype=wp.float32, ndim=1)
   geom_solref: wp.array(dtype=wp.float32, ndim=2)
   geom_solimp: wp.array(dtype=wp.float32, ndim=2)
