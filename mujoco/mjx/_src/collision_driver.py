@@ -394,6 +394,7 @@ def broad_phase_sweep_and_prune_kernel(
     body2 = wp.max(idx1, idx2)
 
     # Collision filtering start
+    '''
     if (body_contype[body1] == 0 and body_conaffinity[body1] == 0) or (
       body_contype[body2] == 0 and body_conaffinity[body2] == 0
     ):
@@ -420,6 +421,7 @@ def broad_phase_sweep_and_prune_kernel(
     # if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
     #     continue
     # Collision filtering end
+    '''
 
     # Check if the boxes overlap
     if body1 != body2 and overlap(worldId, i, j, boxes_sorted):
