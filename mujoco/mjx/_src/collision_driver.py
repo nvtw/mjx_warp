@@ -427,7 +427,7 @@ def broad_phase_sweep_and_prune_kernel(
 
 @wp.kernel
 def get_contact_solver_params_kernel(
-  geom: wp.array2d(dtype=wp.int32),
+  geom: wp.array(dtype=wp.vec2i),
   geom_priority: wp.array(dtype=wp.int32),
   geom_solmix: wp.array(dtype=wp.float32),
   geom_friction: array2df,
@@ -449,8 +449,8 @@ def get_contact_solver_params_kernel(
   if tid >= n_contact_pts:
     return
 
-  g1 = geom[tid, 0]
-  g2 = geom[tid, 1]
+  g1 = geom[tid].x
+  g2 = geom[tid].y
 
   margin = wp.max(geom_margin[g1], geom_margin[g2])
   gap = wp.max(geom_gap[g1], geom_gap[g2])
