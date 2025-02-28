@@ -51,38 +51,38 @@ from .collision_functions import convex_convex
 NUM_GEOM_TYPES = 8
 
 @wp.func
-def group_key(type1: GeomType, type2: GeomType)-> int:
-  return type1.value + type2.value * NUM_GEOM_TYPES
+def group_key(type1: int, type2: int)-> int:
+  return type1 + type2 * NUM_GEOM_TYPES
 
 # same order as in MJX - collision function and group key.
 _COLLISION_FUNCS = [
-  (plane_sphere, group_key(GeomType.PLANE, GeomType.SPHERE)),
-  (plane_capsule, group_key(GeomType.PLANE, GeomType.CAPSULE)),
-  (plane_convex, group_key(GeomType.PLANE, GeomType.BOX)),
-  (plane_ellipsoid, group_key(GeomType.PLANE, GeomType.ELLIPSOID)),
-  (plane_cylinder, group_key(GeomType.PLANE, GeomType.CYLINDER)),
-  (plane_convex, group_key(GeomType.PLANE, GeomType.MESH)),
-  (hfield_sphere, group_key(GeomType.HFIELD, GeomType.SPHERE)),
-  (hfield_capsule, group_key(GeomType.HFIELD, GeomType.CAPSULE)),
-  (hfield_convex, group_key(GeomType.HFIELD, GeomType.BOX)),
-  (hfield_convex, group_key(GeomType.HFIELD, GeomType.MESH)),
-  (sphere_sphere, group_key(GeomType.SPHERE, GeomType.SPHERE)),
-  (sphere_capsule, group_key(GeomType.SPHERE, GeomType.CAPSULE)),
-  (sphere_cylinder, group_key(GeomType.SPHERE, GeomType.CYLINDER)),
-  (sphere_ellipsoid, group_key(GeomType.SPHERE, GeomType.ELLIPSOID)),
-  (sphere_convex, group_key(GeomType.SPHERE, GeomType.BOX)),
-  (sphere_convex, group_key(GeomType.SPHERE, GeomType.MESH)),
-  (capsule_capsule, group_key(GeomType.CAPSULE, GeomType.CAPSULE)),
-  (capsule_convex, group_key(GeomType.CAPSULE, GeomType.BOX)),
-  (capsule_ellipsoid, group_key(GeomType.CAPSULE, GeomType.ELLIPSOID)),
-  (capsule_cylinder, group_key(GeomType.CAPSULE, GeomType.CYLINDER)),
-  (capsule_convex, group_key(GeomType.CAPSULE, GeomType.MESH)),
-  (ellipsoid_ellipsoid, group_key(GeomType.ELLIPSOID, GeomType.ELLIPSOID)),
-  (ellipsoid_cylinder, group_key(GeomType.ELLIPSOID, GeomType.CYLINDER)),
-  (cylinder_cylinder, group_key(GeomType.CYLINDER, GeomType.CYLINDER)),
-  (box_box, group_key(GeomType.BOX, GeomType.BOX)),
-  (convex_convex, group_key(GeomType.BOX, GeomType.MESH)),
-  (convex_convex, group_key(GeomType.MESH, GeomType.MESH)),
+  (plane_sphere, group_key(GeomType.PLANE.value, GeomType.SPHERE.value)),
+  (plane_capsule, group_key(GeomType.PLANE.value, GeomType.CAPSULE.value)),
+  (plane_convex, group_key(GeomType.PLANE.value, GeomType.BOX.value)),
+  (plane_ellipsoid, group_key(GeomType.PLANE.value, GeomType.ELLIPSOID.value)),
+  (plane_cylinder, group_key(GeomType.PLANE.value, GeomType.CYLINDER.value)),
+  (plane_convex, group_key(GeomType.PLANE.value, GeomType.MESH.value)),
+  (hfield_sphere, group_key(GeomType.HFIELD.value, GeomType.SPHERE.value)),
+  (hfield_capsule, group_key(GeomType.HFIELD.value, GeomType.CAPSULE.value)),
+  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.BOX.value)),
+  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.MESH.value)),
+  (sphere_sphere, group_key(GeomType.SPHERE.value, GeomType.SPHERE.value)),
+  (sphere_capsule, group_key(GeomType.SPHERE.value, GeomType.CAPSULE.value)),
+  (sphere_cylinder, group_key(GeomType.SPHERE.value, GeomType.CYLINDER.value)),
+  (sphere_ellipsoid, group_key(GeomType.SPHERE.value, GeomType.ELLIPSOID.value)),
+  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.BOX.value)),
+  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.MESH.value)),
+  (capsule_capsule, group_key(GeomType.CAPSULE.value, GeomType.CAPSULE.value)),
+  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.BOX.value)),
+  (capsule_ellipsoid, group_key(GeomType.CAPSULE.value, GeomType.ELLIPSOID.value)),
+  (capsule_cylinder, group_key(GeomType.CAPSULE.value, GeomType.CYLINDER.value)),
+  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.MESH.value)),
+  (ellipsoid_ellipsoid, group_key(GeomType.ELLIPSOID.value, GeomType.ELLIPSOID.value)),
+  (ellipsoid_cylinder, group_key(GeomType.ELLIPSOID.value, GeomType.CYLINDER.value)),
+  (cylinder_cylinder, group_key(GeomType.CYLINDER.value, GeomType.CYLINDER.value)),
+  (box_box, group_key(GeomType.BOX.value, GeomType.BOX.value)),
+  (convex_convex, group_key(GeomType.BOX.value, GeomType.MESH.value)),
+  (convex_convex, group_key(GeomType.MESH.value, GeomType.MESH.value)),
 ]
 
 #####################################################################################
