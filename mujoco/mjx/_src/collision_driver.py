@@ -24,9 +24,9 @@ from .types import MJ_NREF
 from .types import MJ_NIMP
 from .types import array2df
 from .types import array3df
+from .types import NUM_GEOM_TYPES
 from .collision_functions import plane_sphere
 from .collision_functions import plane_capsule
-from .collision_functions import plane_convex
 from .collision_functions import plane_ellipsoid
 from .collision_functions import plane_cylinder
 from .collision_functions import plane_convex
@@ -51,10 +51,8 @@ from .collision_functions import convex_convex
 from .support import where
 
 
-NUM_GEOM_TYPES = 8
-
 @wp.func
-def group_key(type1: int, type2: int)-> int:
+def group_key(type1: wp.int32, type2: wp.int32)-> wp.int32:
   return type1 + type2 * NUM_GEOM_TYPES
 
 # same order as in MJX - collision function and group key.
@@ -162,18 +160,6 @@ def get_dyn_body_aamm(
 
 @wp.kernel
 def init_kernel(
-    # max_contact_points: int,
-    # nenv: int,
-    # dist: wp.array(dtype=wp.float32),
-    # pos: wp.array(dtype=wp.vec3),
-    # normal: wp.array(dtype=wp.vec3),
-    # g1: wp.array(dtype=wp.int32),
-    # g2: wp.array(dtype=wp.int32),
-    # includemargin: wp.array(dtype=wp.float32),
-    # friction: wp.array(dtype=wp.float32),
-    # solref: wp.array(dtype=wp.float32),
-    # solreffriction: wp.array(dtype=wp.float32),
-    # solimp: wp.array(dtype=wp.float32),
     contact: Contact,
 ):
     world_id, contact_id = wp.tid()    
@@ -559,14 +545,57 @@ def broadphase(m: Model, d: Data):
   )
 
   broad_phase(m, d)
-
-  pass
     
 def group_contacts_by_type(m: Model, d: Data):
-  # initialize type pair count
-  # group contacts by type
 
-  pass
+  # initialize type pair count & group contacts by type
+  @wp.kernel
+  def group_contacts_by_type(
+    geom_type: wp.array(dtype=wp.int32),
+    bp_geom_pair: wp.array(dtype=wp.vec2i, ndim=2),
+    bp_geom_pair_count: wp.array(dtype=wp.int32),
+    # outputs
+    type_pair_env_id: wp.array(dtype=wp.int32, ndim=2),
+    type_pair_geom_id: wp.array(dtype=wp.vec2i, ndim=2),
+    type_pair_count: wp.array(dtype=wp.int32),
+  ):
+    worldid, tid = wp.tid()
+    if tid >= bp_geom_pair_count[worldid]:
+        return
+
+    geoms = bp_geom_pair[worldid, tid]
+    geom1 = geoms[0]
+    geom2 = geoms[1]
+
+    type1 = geom_type[geom1]
+    type2 = geom_type[geom2]
+    group_key = group_key(type1, type2)
+
+    n_type_pair = wp.atomic_add(type_pair_count, group_key, 1)
+    type_pair_env_id[group_key, n_type_pair] = worldid
+    type_pair_geom_id[group_key, n_type_pair] = wp.vec2i(geom1, geom2)
+
+  # Initialize type pair count
+  d.narrowphase_candidate_group_count.zero_()
+
+  wp.launch(
+      group_contacts_by_type,
+      dim=(d.nworld, d.max_num_overlaps_per_world),
+      inputs=[
+          m.geom_type,
+          d.broadphase_pairs,
+          d.result_count,
+      ],
+      outputs=[
+          d.narrowphase_candidate_worldid,
+          d.narrowphase_candidate_geom,
+          d.narrowphase_candidate_group_count,
+      ],
+  )
+
+  # Initialize the env contact counter
+  d.contact_counter.zero_()
+
 
 def narrowphase(m: Model, d: Data):
 
@@ -579,7 +608,7 @@ def narrowphase(m: Model, d: Data):
   for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func, group_key = _COLLISION_FUNCS[i]
-    func(m, d)#, group_key)
+    func(m, d)
 
 def get_contact_solver_params(m: Model, d: Data):
 
