@@ -126,19 +126,14 @@ _COLLISION_FUNCS = [
 # use this kernel to get the AAMM for each body
 @wp.kernel
 def get_dyn_body_aamm(
-    nmodel: int, ngeom: int,
     body_geomnum: wp.array(dtype=int),
     body_geomadr: wp.array(dtype=int),
     geom_margin: wp.array(dtype=float),
-    geom_xpos: wp.array(dtype=wp.vec3),
+    geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
     geom_rbound: wp.array(dtype=float),
     dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3),
 ):
     env_id, bid = wp.tid()    
-
-    #bid = tid % nbody
-    #env_id = tid // nbody
-    model_id = env_id % nmodel
 
     # Initialize AAMM with extreme values
     aamm_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
@@ -149,9 +144,9 @@ def get_dyn_body_aamm(
         g = body_geomadr[bid] + i
 
         for j in range(3):
-            pos = geom_xpos[(env_id * ngeom + g)][j]
-            rbound = geom_rbound[model_id * ngeom + g]
-            margin = geom_margin[model_id * ngeom + g]
+            pos = geom_xpos[env_id, g][j]
+            rbound = geom_rbound[g]
+            margin = geom_margin[g]
 
             min_val = pos - rbound - margin
             max_val = pos + rbound + margin           
@@ -437,7 +432,8 @@ def broad_phase(m: Model, d: Data):
       d.data_start,
       d.data_indexer,
       m.ngeom * d.nworld,
-      d.segment_indices
+      d.segment_indices,
+      d.nworld
     )
   else:
     # Sort each world's segment separately
@@ -553,8 +549,6 @@ def broadphase(m: Model, d: Data):
     kernel=get_dyn_body_aamm,
     dim=(d.nworld, m.nbody),
     inputs=[
-      m.nbody,
-      m.ngeom,
       m.body_geomnum,
       m.body_geomadr,
       m.geom_margin,
