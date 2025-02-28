@@ -21,6 +21,7 @@ from .types import Contact
 from .types import GeomType
 from .support import where
 
+@wp.kernel
 def plane_convex_kernel(
   m: Model,
   d: Data,
@@ -39,14 +40,14 @@ def plane_convex_kernel(
   plane_geom = geoms[0]
   convex_geom = geoms[1]
 
-  convex_type = m.geom_type[worldid, convex_geom]
-  if wp.static(convex_type.value == GeomType.BOX.value):
-    pass # box-specific stuff - many things can be hardcoded here
-  else:
-    pass # mesh-specific stuff
+  convex_type = m.geom_type[convex_geom]
+  #if convex_type == wp.static(GeomType.BOX.value):
+  #  pass # box-specific stuff - many things can be hardcoded here
+  #else:
+  #  pass # mesh-specific stuff
 
   # if contact
-  index = wp.atomic_add(d.contact_counter[worldid], 1)
+  index = wp.atomic_add(d.contact_counter, worldid, 1)
   #d.contact.dist[worldid, index] = dist
   #d.contact.pos[worldid, index] = pos
   #d.contact.frame[worldid, index] = frame
