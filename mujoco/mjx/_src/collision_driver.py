@@ -180,10 +180,10 @@ def init_kernel(
     world_id, contact_id = wp.tid()    
 
     contact.dist[world_id, contact_id] = 1e12
-    contact.pos[world_id, contact_id ] = wp.vec3(0.0, 0.0, 0.0)
-    contact.normal[world_id, contact_id] = wp.vec3(0.0, 0.0, 0.0)
-    contact.g1[world_id, contact_id] = -1
-    contact.g2[world_id, contact_id] = -1
+    contact.pos[world_id, contact_id ] = wp.vec3(0.0)
+    contact.frame[world_id, contact_id] = wp.mat33f(0.0)
+    contact.geom[world_id, contact_id, 0] = -1
+    contact.geom[world_id, contact_id, 1] = -1
     contact.includemargin[world_id, contact_id] = 0.0
     contact.solref[world_id, contact_id, 0] = 0.02
     contact.solref[world_id, contact_id, 1] = 1.0
@@ -232,8 +232,6 @@ def overlap(
 @wp.kernel
 def broad_phase_project_boxes_onto_sweep_direction_kernel(
   boxes: wp.array(dtype=wp.vec3, ndim=3),
-  box_translations: wp.array(dtype=wp.vec3, ndim=3),
-  box_rotations: wp.array(dtype=wp.mat33, ndim=3),
   data_start: wp.array(dtype=wp.float32, ndim=2),
   data_end: wp.array(dtype=wp.float32, ndim=2),
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
@@ -263,8 +261,6 @@ def broad_phase_project_boxes_onto_sweep_direction_kernel(
 @wp.kernel
 def reorder_bounding_boxes_kernel(
   boxes: wp.array(dtype=wp.vec3, ndim=3),
-  box_translations: wp.array(dtype=wp.vec3, ndim=3),
-  box_rotations: wp.array(dtype=wp.mat33, ndim=3),
   boxes_sorted: wp.array(dtype=wp.vec3, ndim=3),
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
 ):
@@ -420,8 +416,6 @@ def broad_phase(m: Model, d: Data):
     dim=(d.nworld, m.ngeom),
     inputs=[
       d.dyn_body_aamm,
-      d.geom_xpos,
-      d.geom_xmat,
       d.data_start,
       d.data_end,
       d.data_indexer,
@@ -439,8 +433,7 @@ def broad_phase(m: Model, d: Data):
       d.data_start,
       d.data_indexer,
       m.ngeom * d.nworld,
-      d.segment_indices,
-      d.nworld,
+      d.segment_indices
     )
   else:
     # Sort each world's segment separately
@@ -495,7 +488,7 @@ def broad_phase(m: Model, d: Data):
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[d.geom_aabb, d.geom_xpos, d.geom_xmat, d.boxes_sorted, d.data_indexer],
+    inputs=[d.dyn_body_aamm, d.boxes_sorted, d.data_indexer],
   )
 
   wp.launch(

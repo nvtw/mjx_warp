@@ -301,9 +301,7 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, njmax: int = -1) -> types.Da
   d.result_count = wp.zeros(nworld, dtype=wp.int32)
 
   # internal broadphase tmp arrays
-  d.boxes_sorted = wp.zeros(
-    (nworld, mjm.ngeom), dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32)
-  )
+  d.boxes_sorted = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
   d.data_start = wp.zeros((2 * nworld, mjm.ngeom), dtype=wp.float32)
   d.data_end = wp.zeros((nworld, mjm.ngeom), dtype=wp.float32)
   d.data_indexer = wp.zeros((2 * nworld, mjm.ngeom), dtype=wp.int32)
@@ -312,9 +310,7 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, njmax: int = -1) -> types.Da
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
 
-  d.geom_aabb = wp.array(
-    mjm.geom_aabb, dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1
-  )
+  d.dyn_body_aamm = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
 
   return d
 
@@ -475,9 +471,7 @@ def put_data(
   d.result_count = wp.zeros(nworld, dtype=wp.int32)
 
   # internal broadphase tmp arrays
-  d.boxes_sorted = wp.zeros(
-    (nworld, mjm.ngeom), dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32)
-  )
+  d.boxes_sorted = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
   d.data_start = wp.zeros((2 * nworld, mjm.ngeom), dtype=wp.float32)
   d.data_end = wp.zeros((nworld, mjm.ngeom), dtype=wp.float32)
   d.data_indexer = wp.zeros((2 * nworld, mjm.ngeom), dtype=wp.int32)
@@ -486,8 +480,6 @@ def put_data(
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
 
-  d.geom_aabb = wp.array(
-    mjm.geom_aabb, dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1
-  )
+  d.dyn_body_aamm = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
 
   return d
