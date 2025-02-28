@@ -32,7 +32,8 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.ngeom = mjm.ngeom
   m.nsite = mjm.nsite
   m.nmocap = mjm.nmocap
-  m.nM = mjm.nM
+  m.nM = mjm.nM  
+  m.nexclude = mjm.nexclude
   m.opt.timestep = mjm.opt.timestep
   m.opt.tolerance = mjm.opt.tolerance
   m.opt.ls_tolerance = mjm.opt.ls_tolerance
@@ -206,6 +207,11 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
   m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
   m.geom_rbound = wp.array(mjm.geom_rbound, dtype=wp.float32, ndim=1)
+  m.body_parentid = wp.array(mjm.body_parentid, dtype=wp.int32, ndim=1)
+  m.body_weldid = wp.array(mjm.body_weldid, dtype=wp.int32, ndim=1)
+  m.body_contype = wp.array(mjm.body_contype, dtype=wp.int32, ndim=1)
+  m.body_conaffinity = wp.array(mjm.body_conaffinity, dtype=wp.int32, ndim=1)
+  m.exclude_signature = wp.array(mjm.exclude_signature, dtype=wp.int32, ndim=1)
 
   return m
 
