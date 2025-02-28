@@ -150,6 +150,7 @@ class GeomType(enum.IntEnum):
   MESH = mujoco.mjtGeom.mjGEOM_MESH
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
 
+NUM_GEOM_TYPES = 8
 
 class vec10f(wp.types.vector(length=10, dtype=wp.float32)):
   pass
@@ -158,9 +159,6 @@ class vec10f(wp.types.vector(length=10, dtype=wp.float32)):
 vec10 = vec10f
 array2df = wp.array2d(dtype=wp.float32)
 array3df = wp.array3d(dtype=wp.float32)
-
-BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
-
 
 @wp.struct
 class Option:
@@ -194,7 +192,8 @@ class Model:
   ngeom: int
   nsite: int
   nmocap: int
-  nM: int
+  nM: int  
+  nexclude : int
   opt: Option
   stat: Statistic
   qpos0: wp.array(dtype=wp.float32, ndim=1)
@@ -239,9 +238,17 @@ class Model:
   jnt_stiffness: wp.array(dtype=wp.float32, ndim=1)
   jnt_actfrclimited: wp.array(dtype=wp.bool, ndim=1)
   jnt_actfrcrange: wp.array(dtype=wp.vec2, ndim=1)
+  geom_type: wp.array(dtype=wp.int32, ndim=1)
   geom_bodyid: wp.array(dtype=wp.int32, ndim=1)
   geom_pos: wp.array(dtype=wp.vec3, ndim=1)
   geom_quat: wp.array(dtype=wp.quat, ndim=1)
+  geom_priority: wp.array(dtype=wp.int32, ndim=1)
+  geom_solmix: wp.array(dtype=wp.float32, ndim=1)
+  geom_solref: wp.array(dtype=wp.float32, ndim=2)
+  geom_solimp: wp.array(dtype=wp.float32, ndim=2)
+  geom_friction: wp.array(dtype=wp.float32, ndim=2)
+  geom_margin: wp.array(dtype=wp.float32, ndim=1)
+  geom_gap: wp.array(dtype=wp.float32, ndim=1)
   site_pos: wp.array(dtype=wp.vec3, ndim=1)
   site_quat: wp.array(dtype=wp.quat, ndim=1)
   site_bodyid: wp.array(dtype=wp.int32, ndim=1)
@@ -268,6 +275,17 @@ class Model:
   actuator_actadr: wp.array(dtype=wp.int32, ndim=1)
   actuator_dyntype: wp.array(dtype=wp.int32, ndim=1)
   actuator_dynprm: wp.array(dtype=vec10f, ndim=1)
+
+  geom_margin: wp.array(dtype=wp.float32, ndim=1)
+  body_geomnum: wp.array(dtype=wp.int32, ndim=1)
+  body_geomadr: wp.array(dtype=wp.int32, ndim=1)
+  geom_rbound: wp.array(dtype=wp.float32, ndim=2)
+
+  body_parentid: wp.array(dtype=wp.int32, ndim=1) 
+  body_weldid: wp.array(dtype=wp.int32, ndim=1)    
+  body_contype: wp.array(dtype=wp.int32, ndim=1)   
+  body_conaffinity: wp.array(dtype=wp.int32, ndim=1) 
+  exclude_signature: wp.array(dtype=wp.int32, ndim=1)  
 
 @wp.struct
 class Contact:
@@ -346,6 +364,7 @@ class Data:
   efc_worldid: wp.array(dtype=wp.int32, ndim=1)  # warp only
   xfrc_applied: wp.array(dtype=wp.spatial_vector, ndim=2)
   contact: Contact
+  contact_counter: wp.array(dtype=wp.int32, ndim=1)
 
   # temp arrays
   qfrc_integration: wp.array(dtype=wp.float32, ndim=2)
@@ -359,11 +378,16 @@ class Data:
   max_num_overlaps_per_world: int
   broadphase_pairs: wp.array(dtype=wp.vec2i, ndim=2)
   result_count: wp.array(dtype=wp.int32, ndim=1)
-  boxes_sorted: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2)
+  boxes_sorted: wp.array(dtype=wp.vec3, ndim=3)
   data_start: wp.array(dtype=wp.float32, ndim=2)
   data_end: wp.array(dtype=wp.float32, ndim=2)
   data_indexer: wp.array(dtype=wp.int32, ndim=2)
   ranges: wp.array(dtype=wp.int32, ndim=2)
   cumulative_sum: wp.array(dtype=wp.int32, ndim=1)
   segment_indices: wp.array(dtype=wp.int32, ndim=1)
-  geom_aabb: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1)
+  dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3)
+
+  # narrowphase temp arrays
+  narrowphase_candidate_worldid: wp.array(dtype=wp.int32, ndim=2) 
+  narrowphase_candidate_geom: wp.array(dtype=wp.vec2i, ndim=2)
+  narrowphase_candidate_group_count: wp.array(dtype=wp.int32, ndim=1)

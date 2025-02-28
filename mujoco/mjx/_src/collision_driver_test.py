@@ -12,28 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-
-"""Tests for broad phase functions."""
+"""Tests the collision driver."""
 
 from absl.testing import absltest
-from absl.testing import parameterized
+
 import mujoco
 from mujoco import mjx
-import numpy as np
-import warp as wp
 
-from . import test_util
+class ConvexTest(absltest.TestCase):
+  """Tests the convex contact functions."""
 
+  _BOX_PLANE = """
+    <mujoco>
+      <worldbody>
+        <geom size="40 40 40" type="plane"/>
+        <body pos="0 0 0.7" euler="45 0 0">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
 
-class BroadPhaseTest(parameterized.TestCase):
-  def test_broad_phase(self):
-    """Tests broad phase."""
-    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")    
+  def test_box_plane(self):
+    """Tests box collision with a plane."""
+    m = mujoco.MjModel.from_xml_string(self._BOX_PLANE)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
 
-    mjx.broad_phase(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
 
-
-
-if __name__ == "__main__":
-  wp.init()
-  absltest.main()
+    mjx.collision(mx, dx)
+    
