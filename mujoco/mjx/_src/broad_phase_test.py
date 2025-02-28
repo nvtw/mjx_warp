@@ -28,10 +28,9 @@ from . import test_util
 class BroadPhaseTest(parameterized.TestCase):
   def test_broad_phase(self):
     """Tests broad phase."""
-    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")    
+    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")
 
     mjx.broad_phase(m, d)
-
 
 
 if __name__ == "__main__":

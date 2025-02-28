@@ -382,7 +382,7 @@ def broad_phase_sweep_and_prune_kernel(
     body2 = wp.max(idx1, idx2)
 
     # Collision filtering start
-    '''
+    """
     if (body_contype[body1] == 0 and body_conaffinity[body1] == 0) or (
       body_contype[body2] == 0 and body_conaffinity[body2] == 0
     ):
@@ -409,7 +409,7 @@ def broad_phase_sweep_and_prune_kernel(
     # if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
     #     continue
     # Collision filtering end
-    '''
+    """
 
     # Check if the boxes overlap
     if body1 != body2 and overlap(worldId, i, j, boxes_sorted):
@@ -424,6 +424,7 @@ def broad_phase_sweep_and_prune_kernel(
         data_result[worldId, id] = pair
 
     threadId += num_threads
+
 
 @wp.kernel
 def get_contact_solver_params_kernel(
@@ -494,6 +495,7 @@ def get_contact_solver_params_kernel(
       mix * geom_solimp[g1, i] + (1.0 - mix) * geom_solimp[g2, i]
     )  # solimp_[i]
 
+
 @wp.kernel
 def group_contacts_by_type_kernel(
   geom_type: wp.array(dtype=wp.int32),
@@ -519,6 +521,7 @@ def group_contacts_by_type_kernel(
   n_type_pair = wp.atomic_add(type_pair_count, group_key, 1)
   type_pair_env_id[group_key, n_type_pair] = worldid
   type_pair_geom_id[group_key, n_type_pair] = wp.vec2i(geom1, geom2)
+
 
 def broad_phase(m: Model, d: Data):
   """Broad phase collision detection."""
@@ -687,7 +690,6 @@ def broadphase(m: Model, d: Data):
 
 def group_contacts_by_type(m: Model, d: Data):
   # initialize type pair count & group contacts by type
-  
 
   # Initialize type pair count
   d.narrowphase_candidate_group_count.zero_()
@@ -725,8 +727,6 @@ def narrowphase(m: Model, d: Data):
 
 
 def get_contact_solver_params(m: Model, d: Data):
-  
-
   wp.launch(
     get_contact_solver_params_kernel,
     dim=[d.nconmax],

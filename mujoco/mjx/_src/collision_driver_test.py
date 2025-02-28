@@ -19,6 +19,7 @@ from absl.testing import absltest
 import mujoco
 from mujoco import mjx
 
+
 class ConvexTest(absltest.TestCase):
   """Tests the convex contact functions."""
 
@@ -45,4 +46,3 @@ class ConvexTest(absltest.TestCase):
     dx = mjx.put_data(m, d)
 
     mjx.collision(mx, dx)
-    

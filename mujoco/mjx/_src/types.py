@@ -125,6 +125,7 @@ class ConeType(enum.IntEnum):
   PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL
   ELLIPTIC = mujoco.mjtCone.mjCONE_ELLIPTIC
 
+
 class GeomType(enum.IntEnum):
   """Type of geometry.
 
@@ -150,7 +151,9 @@ class GeomType(enum.IntEnum):
   MESH = mujoco.mjtGeom.mjGEOM_MESH
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
 
+
 NUM_GEOM_TYPES = 8
+
 
 class vec5f(wp.types.vector(length=5, dtype=wp.float32)):
   pass
@@ -164,6 +167,7 @@ vec5 = vec5f
 vec10 = vec10f
 array2df = wp.array2d(dtype=wp.float32)
 array3df = wp.array3d(dtype=wp.float32)
+
 
 @wp.struct
 class Option:
@@ -197,8 +201,8 @@ class Model:
   ngeom: int
   nsite: int
   nmocap: int
-  nM: int  
-  nexclude : int
+  nM: int
+  nexclude: int
   opt: Option
   stat: Statistic
   qpos0: wp.array(dtype=wp.float32, ndim=1)
@@ -286,11 +290,12 @@ class Model:
   body_geomadr: wp.array(dtype=wp.int32, ndim=1)
   geom_rbound: wp.array(dtype=wp.float32, ndim=2)
 
-  body_parentid: wp.array(dtype=wp.int32, ndim=1) 
-  body_weldid: wp.array(dtype=wp.int32, ndim=1)    
-  body_contype: wp.array(dtype=wp.int32, ndim=1)   
-  body_conaffinity: wp.array(dtype=wp.int32, ndim=1) 
-  exclude_signature: wp.array(dtype=wp.int32, ndim=1)  
+  body_parentid: wp.array(dtype=wp.int32, ndim=1)
+  body_weldid: wp.array(dtype=wp.int32, ndim=1)
+  body_contype: wp.array(dtype=wp.int32, ndim=1)
+  body_conaffinity: wp.array(dtype=wp.int32, ndim=1)
+  exclude_signature: wp.array(dtype=wp.int32, ndim=1)
+
 
 @wp.struct
 class Contact:
@@ -396,6 +401,6 @@ class Data:
   dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3)
 
   # narrowphase temp arrays
-  narrowphase_candidate_worldid: wp.array(dtype=wp.int32, ndim=2) 
+  narrowphase_candidate_worldid: wp.array(dtype=wp.int32, ndim=2)
   narrowphase_candidate_geom: wp.array(dtype=wp.vec2i, ndim=2)
   narrowphase_candidate_group_count: wp.array(dtype=wp.int32, ndim=1)

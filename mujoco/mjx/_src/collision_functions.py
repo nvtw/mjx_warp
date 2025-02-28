@@ -21,18 +21,15 @@ from .types import Contact
 from .types import GeomType
 from .support import where
 
+
 @wp.kernel
-def plane_convex_kernel(
-  m: Model,
-  d: Data,
-  group_key: int
-):
+def plane_convex_kernel(m: Model, d: Data, group_key: int):
   """Calculates contacts between a plane and a convex object."""
   tid = wp.tid()
   num_candidate_contacts = d.narrowphase_candidate_group_count[group_key]
   if tid >= num_candidate_contacts:
-      return
-  
+    return
+
   geoms = d.narrowphase_candidate_geom[group_key, tid]
   worldid = d.narrowphase_candidate_worldid[group_key, tid]
 
@@ -41,99 +38,122 @@ def plane_convex_kernel(
   convex_geom = geoms[1]
 
   convex_type = m.geom_type[convex_geom]
-  #if convex_type == wp.static(GeomType.BOX.value):
+  # if convex_type == wp.static(GeomType.BOX.value):
   #  pass # box-specific stuff - many things can be hardcoded here
-  #else:
+  # else:
   #  pass # mesh-specific stuff
 
   # if contact
   index = wp.atomic_add(d.contact_counter, 0, 1)
-  #d.contact.dist[index] = dist
-  #d.contact.pos[index] = pos
-  #d.contact.frame[index] = frame
-  #d.contact.worldid[index] = worldid
+  # d.contact.dist[index] = dist
+  # d.contact.pos[index] = pos
+  # d.contact.frame[index] = frame
+  # d.contact.worldid[index] = worldid
 
 
 def plane_sphere(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def plane_capsule(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def plane_ellipsoid(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def plane_cylinder(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def plane_convex(m: Model, d: Data, group_key: int):
-    wp.launch(
-      kernel=plane_convex_kernel,
-      dim=(d.nconmax),
-      inputs=[m, d, group_key],
-    )
+  wp.launch(
+    kernel=plane_convex_kernel,
+    dim=(d.nconmax),
+    inputs=[m, d, group_key],
+  )
 
 
 def hfield_sphere(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def hfield_capsule(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def hfield_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def hfield_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def sphere_sphere(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def sphere_capsule(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def sphere_cylinder(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def sphere_ellipsoid(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def sphere_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def sphere_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def capsule_capsule(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def capsule_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def capsule_ellipsoid(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def capsule_cylinder(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def capsule_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def ellipsoid_ellipsoid(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def ellipsoid_cylinder(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def cylinder_cylinder(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def box_box(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def convex_convex(m: Model, d: Data, group_key: int):
-    pass
+  pass
+
 
 def convex_convex(m: Model, d: Data, group_key: int):
-    pass
-
+  pass

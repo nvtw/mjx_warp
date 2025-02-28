@@ -32,7 +32,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.ngeom = mjm.ngeom
   m.nsite = mjm.nsite
   m.nmocap = mjm.nmocap
-  m.nM = mjm.nM  
+  m.nM = mjm.nM
   m.nexclude = mjm.nexclude
   m.opt.timestep = mjm.opt.timestep
   m.opt.tolerance = mjm.opt.tolerance
@@ -174,7 +174,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.geom_priority = wp.array(mjm.geom_priority, dtype=wp.int32, ndim=1)
   m.geom_solmix = wp.array(mjm.geom_solmix, dtype=wp.float32, ndim=1)
   m.geom_solref = wp.array(mjm.geom_solref, dtype=wp.float32, ndim=2)
-  m.geom_solimp =  wp.array(mjm.geom_solimp, dtype=wp.float32, ndim=2)
+  m.geom_solimp = wp.array(mjm.geom_solimp, dtype=wp.float32, ndim=2)
   m.geom_friction = wp.array(mjm.geom_friction, dtype=wp.float32, ndim=2)
   m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
   m.geom_gap = wp.array(mjm.geom_gap, dtype=wp.float32, ndim=1)
@@ -335,8 +335,12 @@ def make_data(
 
   # internal narrowphase tmp arrays
   ngroups = types.NUM_GEOM_TYPES
-  d.narrowphase_candidate_worldid = wp.empty((ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2) 
-  d.narrowphase_candidate_geom = wp.empty((ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2)
+  d.narrowphase_candidate_worldid = wp.empty(
+    (ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2
+  )
+  d.narrowphase_candidate_geom = wp.empty(
+    (ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2
+  )
   d.narrowphase_candidate_group_count = wp.zeros(ngroups, dtype=wp.int32, ndim=1)
 
   return d
@@ -559,8 +563,12 @@ def put_data(
 
   # internal narrowphase tmp arrays
   ngroups = types.NUM_GEOM_TYPES
-  d.narrowphase_candidate_worldid = wp.empty((ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2) 
-  d.narrowphase_candidate_geom = wp.empty((ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2)
+  d.narrowphase_candidate_worldid = wp.empty(
+    (ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2
+  )
+  d.narrowphase_candidate_geom = wp.empty(
+    (ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2
+  )
   d.narrowphase_candidate_group_count = wp.zeros(ngroups, dtype=wp.int32, ndim=1)
 
   return d
