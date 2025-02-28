@@ -139,19 +139,18 @@ def get_dyn_body_aamm(
 
     # Iterate over all geometries associated with the body
     for i in range(body_geomnum[bid]):
-        g = body_geomadr[bid] + i
+      g = body_geomadr[bid] + i
 
-        for j in range(3):
-            pos = geom_xpos[env_id, g][j]
-            rbound = geom_rbound[g]
-            margin = geom_margin[g]
+      for j in range(3):
+        pos = geom_xpos[env_id, g][j]
+        rbound = geom_rbound[g]
+        margin = geom_margin[g]
 
-            min_val = pos - rbound - margin
-            max_val = pos + rbound + margin           
+        min_val = pos - rbound - margin
+        max_val = pos + rbound + margin           
 
-            aamm_min[j] = wp.min(aamm_min[j], min_val)
-            aamm_max[j] = wp.max(aamm_max[j], max_val)
-
+        aamm_min[j] = wp.min(aamm_min[j], min_val)
+        aamm_max[j] = wp.max(aamm_max[j], max_val)
 
     # Write results to output
     dyn_body_aamm[env_id, bid, 0] = aamm_min
@@ -610,8 +609,6 @@ def init(m: Model, d: Data):
     dim=(d.nworld, d.ncon),
     inputs=[d.contact],
   )
-
-  pass
 
 def broadphase(m: Model, d: Data):
   # broadphase collision detection
