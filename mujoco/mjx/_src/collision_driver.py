@@ -22,6 +22,7 @@ from .types import BoxType
 from .types import GeomType
 from .types import MJ_MINVAL
 from .types import MJ_NREF
+from .types import MJ_NIMP
 from .types import array2df
 from .types import array3df
 from .collision_functions import plane_sphere
@@ -552,7 +553,7 @@ def get_contact_solver_params(m: Model, d: Data):
     for i in range(2):
         solref[worldid, tid, i] = solref_[i]
 
-    for i in range(mjNIMP):
+    for i in range(MJ_NIMP):
         solimp[worldid, tid, i] = mix * geom_solimp[g1, i] + (1.0 - mix) * geom_solimp[g2, i]  # solimp_[i]
 
   wp.launch(
