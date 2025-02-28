@@ -438,10 +438,10 @@ def get_contact_solver_params_kernel(
   contact_counter: wp.array(dtype=wp.int32),
   # outputs
   includemargin: wp.array(dtype=wp.float32),
-  friction: array2df,
-  solref: array2df,
-  solreffriction: array2df,
-  solimp: array2df,
+  friction: wp.array(dtype=vec5),
+  solref: wp.array(dtype=wp.vec2f),
+  solreffriction: wp.array(dtype=wp.vec2f),
+  solimp: wp.array(dtype=vec5),
 ):
   tid = wp.tid()
 
@@ -481,18 +481,16 @@ def get_contact_solver_params_kernel(
   for i in range(3):
     friction_[i] = wp.max(geom_friction[g1, i], geom_friction[g2, i])
 
+  friction5 = vec5(friction_[0], friction_[0], friction_[1], friction_[2], friction_[2])
+
   includemargin[tid] = margin - gap
-  friction[tid, 0] = friction_[0]
-  friction[tid, 1] = friction_[0]
-  friction[tid, 2] = friction_[1]
-  friction[tid, 3] = friction_[2]
-  friction[tid, 4] = friction_[2]
+  friction[tid] = friction5
 
   for i in range(2):
-    solref[tid, i] = solref_[i]
+    solref[tid][i] = solref_[i]
 
   for i in range(MJ_NIMP):
-    solimp[tid, i] = (
+    solimp[tid][i] = (
       mix * geom_solimp[g1, i] + (1.0 - mix) * geom_solimp[g2, i]
     )  # solimp_[i]
 
