@@ -242,6 +242,13 @@ class Model:
   geom_bodyid: wp.array(dtype=wp.int32, ndim=1)
   geom_pos: wp.array(dtype=wp.vec3, ndim=1)
   geom_quat: wp.array(dtype=wp.quat, ndim=1)
+  geom_priority: wp.array(dtype=wp.int32, ndim=1)
+  geom_solmix: wp.array(dtype=wp.float32, ndim=1)
+  geom_solref: wp.array(dtype=wp.float32, ndim=2)
+  geom_solimp: wp.array(dtype=wp.float32, ndim=2)
+  geom_friction: wp.array(dtype=wp.float32, ndim=2)
+  geom_margin: wp.array(dtype=wp.float32, ndim=1)
+  geom_gap: wp.array(dtype=wp.float32, ndim=1)
   site_pos: wp.array(dtype=wp.vec3, ndim=1)
   site_quat: wp.array(dtype=wp.quat, ndim=1)
   site_bodyid: wp.array(dtype=wp.int32, ndim=1)
@@ -346,6 +353,7 @@ class Data:
   efc_worldid: wp.array(dtype=wp.int32, ndim=1)  # warp only
   xfrc_applied: wp.array(dtype=wp.spatial_vector, ndim=2)
   contact: Contact
+  contact_counter: wp.array(dtype=wp.int32, ndim=1)
 
   # temp arrays
   qfrc_integration: wp.array(dtype=wp.float32, ndim=2)
