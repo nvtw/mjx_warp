@@ -169,6 +169,13 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.geom_bodyid = wp.array(mjm.geom_bodyid, dtype=wp.int32, ndim=1)
   m.geom_pos = wp.array(mjm.geom_pos, dtype=wp.vec3, ndim=1)
   m.geom_quat = wp.array(mjm.geom_quat, dtype=wp.quat, ndim=1)
+  m.geom_priority = wp.array(mjm.geom_priority, dtype=wp.float32, ndim=1)
+  m.geom_solmix = wp.array(mjm.geom_solmix,dtype=wp.float32, ndim=1)
+  m.geom_solref = wp.array(mjm.geom_solref, dtype=wp.float32, ndim=2)
+  m.geom_solimp =  wp.array(mjm.geom_solimp, dtype=wp.float32, ndim=2)
+  m.geom_friction = wp.array(mjm.geom_friction, dtype=wp.float32, ndim=2)
+  m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
+  m.geom_gap = wp.array(mjm.geom_gap, dtype=wp.float32, ndim=1)
   m.site_pos = wp.array(mjm.site_pos, dtype=wp.vec3, ndim=1)
   m.site_quat = wp.array(mjm.site_quat, dtype=wp.quat, ndim=1)
   m.dof_bodyid = wp.array(mjm.dof_bodyid, dtype=wp.int32, ndim=1)
@@ -266,6 +273,7 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, njmax: int = -1) -> types.Da
   d.contact.dim = wp.zeros((nworld, d.ncon), dtype=wp.int32)
   d.contact.geom = wp.zeros((nworld, d.ncon, 2), dtype=wp.int32)
   d.contact.efc_address = wp.zeros((nworld, d.ncon), dtype=wp.int32)
+  d.contact_counter = wp.zeros(nworld, dtype=wp.int32)
   d.qfrc_passive = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
   d.qfrc_spring = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
   d.qfrc_damper = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
@@ -456,6 +464,7 @@ def put_data(
   d.contact.efc_address = wp.array(
     tile(mjd.contact.efc_address), dtype=wp.int32, ndim=2
   )
+  d.contact_counter = wp.zeros(nworld, dtype=wp.int32)
 
   d.xfrc_applied = wp.array(tile(mjd.xfrc_applied), dtype=wp.spatial_vector, ndim=2)
   # internal tmp arrays
