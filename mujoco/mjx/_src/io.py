@@ -531,6 +531,8 @@ def put_data(
   d.contact.efc_address = wp.array(con_efc_address, dtype=wp.int32, ndim=1)
   d.contact.worldid = wp.array(con_worldid, dtype=wp.int32, ndim=1)
 
+  d.contact_counter = wp.zeros(nworld, dtype=wp.int32)
+
   d.xfrc_applied = wp.array(tile(mjd.xfrc_applied), dtype=wp.spatial_vector, ndim=2)
   # internal tmp arrays
   d.qfrc_integration = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
