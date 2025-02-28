@@ -25,6 +25,7 @@ from .types import MJ_NIMP
 from .types import array2df
 from .types import array3df
 from .types import NUM_GEOM_TYPES
+from .types import vec5
 from .collision_functions import plane_sphere
 from .collision_functions import plane_capsule
 from .collision_functions import plane_ellipsoid
@@ -163,28 +164,18 @@ def get_dyn_body_aamm(
 def init_kernel(
   contact: Contact,
 ):
-  world_id, contact_id = wp.tid()
+  contact_id = wp.tid()
 
-  contact.dist[world_id, contact_id] = 1e12
-  contact.pos[world_id, contact_id] = wp.vec3(0.0)
-  contact.frame[world_id, contact_id] = wp.mat33f(0.0)
-  contact.geom[world_id, contact_id, 0] = -1
-  contact.geom[world_id, contact_id, 1] = -1
-  contact.includemargin[world_id, contact_id] = 0.0
-  contact.solref[world_id, contact_id, 0] = 0.02
-  contact.solref[world_id, contact_id, 1] = 1.0
-  contact.solimp[world_id, contact_id, 0] = 0.9
-  contact.solimp[world_id, contact_id, 1] = 0.95
-  contact.solimp[world_id, contact_id, 2] = 0.001
-  contact.solimp[world_id, contact_id, 3] = 0.5
-  contact.solimp[world_id, contact_id, 4] = 2.0
-  contact.friction[world_id, contact_id, 0] = 1.0
-  contact.friction[world_id, contact_id, 1] = 1.0
-  contact.friction[world_id, contact_id, 2] = 0.005
-  contact.friction[world_id, contact_id, 3] = 0.0001
-  contact.friction[world_id, contact_id, 4] = 0.0001
-  contact.solreffriction[world_id, contact_id, 0] = 0.0
-  contact.solreffriction[world_id, contact_id, 1] = 0.0
+  contact.dist[contact_id] = 1e12
+  contact.pos[contact_id] = wp.vec3(0.0)
+  contact.frame[contact_id] = wp.mat33f(0.0)
+  contact.geom[contact_id] = wp.vec2i(-1, -1)
+  contact.includemargin[contact_id] = 0.0
+  contact.solref[contact_id].x = 0.02
+  contact.solref[contact_id].y = 1.0
+  contact.solimp[contact_id] = vec5(0.9, 0.95, 0.001, 0.5, 2.0)
+  contact.friction[contact_id] = vec5(1.0, 1.0, 0.005, 0.0001, 0.0001)
+  contact.solreffriction[contact_id] = wp.vec2(0.0, 0.0)
 
 
 @wp.func
@@ -436,7 +427,7 @@ def broad_phase_sweep_and_prune_kernel(
 
 @wp.kernel
 def get_contact_solver_params_kernel(
-  geom: wp.array3d(dtype=wp.int32),
+  geom: wp.array2d(dtype=wp.int32),
   geom_priority: wp.array(dtype=wp.int32),
   geom_solmix: wp.array(dtype=wp.float32),
   geom_friction: array2df,
@@ -444,22 +435,22 @@ def get_contact_solver_params_kernel(
   geom_solimp: array2df,
   geom_margin: wp.array(dtype=wp.float32),
   geom_gap: wp.array(dtype=wp.float32),
-  world_contact_counter: wp.array(dtype=wp.int32),
+  contact_counter: wp.array(dtype=wp.int32),
   # outputs
-  includemargin: array2df,
-  friction: array3df,
-  solref: array3df,
-  solreffriction: array3df,
-  solimp: array3df,
+  includemargin: wp.array(dtype=wp.float32),
+  friction: array2df,
+  solref: array2df,
+  solreffriction: array2df,
+  solimp: array2df,
 ):
-  worldid, tid = wp.tid()
+  tid = wp.tid()
 
-  n_contact_pts = world_contact_counter[worldid]
+  n_contact_pts = contact_counter[0]
   if tid >= n_contact_pts:
     return
 
-  g1 = geom[worldid, tid, 0]
-  g2 = geom[worldid, tid, 1]
+  g1 = geom[tid, 0]
+  g2 = geom[tid, 1]
 
   margin = wp.max(geom_margin[g1], geom_margin[g2])
   gap = wp.max(geom_gap[g1], geom_gap[g2])
@@ -490,18 +481,18 @@ def get_contact_solver_params_kernel(
   for i in range(3):
     friction_[i] = wp.max(geom_friction[g1, i], geom_friction[g2, i])
 
-  includemargin[worldid, tid] = margin - gap
-  friction[worldid, tid, 0] = friction_[0]
-  friction[worldid, tid, 1] = friction_[0]
-  friction[worldid, tid, 2] = friction_[1]
-  friction[worldid, tid, 3] = friction_[2]
-  friction[worldid, tid, 4] = friction_[2]
+  includemargin[tid] = margin - gap
+  friction[tid, 0] = friction_[0]
+  friction[tid, 1] = friction_[0]
+  friction[tid, 2] = friction_[1]
+  friction[tid, 3] = friction_[2]
+  friction[tid, 4] = friction_[2]
 
   for i in range(2):
-    solref[worldid, tid, i] = solref_[i]
+    solref[tid, i] = solref_[i]
 
   for i in range(MJ_NIMP):
-    solimp[worldid, tid, i] = (
+    solimp[tid, i] = (
       mix * geom_solimp[g1, i] + (1.0 - mix) * geom_solimp[g2, i]
     )  # solimp_[i]
 
@@ -666,7 +657,7 @@ def init(m: Model, d: Data):
   # initialize output data
   wp.launch(
     kernel=init_kernel,
-    dim=(d.nworld, d.ncon),
+    dim=(d.nconmax),
     inputs=[d.contact],
   )
 
@@ -740,7 +731,7 @@ def get_contact_solver_params(m: Model, d: Data):
 
   wp.launch(
     get_contact_solver_params_kernel,
-    dim=[d.nworld, d.ncon],
+    dim=[d.nconmax],
     inputs=[
       d.contact.geom,
       m.geom_priority,

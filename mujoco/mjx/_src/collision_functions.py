@@ -47,10 +47,11 @@ def plane_convex_kernel(
   #  pass # mesh-specific stuff
 
   # if contact
-  index = wp.atomic_add(d.contact_counter, worldid, 1)
-  #d.contact.dist[worldid, index] = dist
-  #d.contact.pos[worldid, index] = pos
-  #d.contact.frame[worldid, index] = frame
+  index = wp.atomic_add(d.contact_counter, 0, 1)
+  #d.contact.dist[index] = dist
+  #d.contact.pos[index] = pos
+  #d.contact.frame[index] = frame
+  #d.contact.worldid[index] = worldid
 
 
 def plane_sphere(m: Model, d: Data, group_key: int):
@@ -68,7 +69,7 @@ def plane_cylinder(m: Model, d: Data, group_key: int):
 def plane_convex(m: Model, d: Data, group_key: int):
     wp.launch(
       kernel=plane_convex_kernel,
-      dim=(d.nworld * d.max_num_overlaps_per_world),
+      dim=(d.nconmax),
       inputs=[m, d, group_key],
     )
 
