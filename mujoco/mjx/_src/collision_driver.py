@@ -224,10 +224,12 @@ def broad_phase_project_boxes_onto_sweep_direction_kernel(
 
   # box = boxes[worldId, i]
   # box = transform_aabb(box, box_translations[worldId, i], box_rotations[worldId, i])
-  box_center = boxes[worldId, i, 0]
-  box_size = boxes[worldId, i, 1]
-  center = wp.dot(direction, box_center)
-  d = wp.dot(box_size, abs_dir)
+  box_min = boxes[worldId, i, 0]
+  box_max = boxes[worldId, i, 1]
+  c = (box_min + box_max) * 0.5
+  box_half_size = (box_max - box_min) * 0.5
+  center = wp.dot(direction, c)
+  d = wp.dot(box_half_size, abs_dir)
   f = center - d
 
   # Store results in the data arrays
