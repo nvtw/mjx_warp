@@ -111,7 +111,7 @@ _COLLISION_FUNCS = {
 #####################################################################################
 # BROADPHASE
 #####################################################################################
-# TODO: Verify that this is corect
+# old kernel for aabb calculation - not sure if this is correct
 @wp.func
 def transform_aabb(
   aabb: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
@@ -142,6 +142,93 @@ def transform_aabb(
   result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
   result[1] = wp.vec3(world_extents.x, world_extents.y, world_extents.z)
   return result
+
+# use this kernel to get the AAMM for each body
+@wp.kernel
+def get_dyn_body_aamm(
+    nenv: int, nbody: int, nmodel: int, ngeom: int,
+    body_geomnum: wp.array(dtype=int),
+    body_geomadr: wp.array(dtype=int),
+    geom_margin: wp.array(dtype=float),
+    geom_xpos: wp.array(dtype=wp.vec3),
+    geom_rbound: wp.array(dtype=float),
+    dyn_body_aamm: wp.array(dtype=float),
+):
+    tid = wp.tid()
+    if tid >= nenv * nbody:
+        return
+
+    bid = tid % nbody
+    env_id = tid // nbody
+    model_id = env_id % nmodel
+
+    # Initialize AAMM with extreme values
+    aamm_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
+    aamm_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
+
+    # Iterate over all geometries associated with the body
+    for i in range(body_geomnum[bid]):
+        g = body_geomadr[bid] + i
+
+        for j in range(3):
+            pos = geom_xpos[(env_id * ngeom + g)][j]
+            rbound = geom_rbound[model_id * ngeom + g]
+            margin = geom_margin[model_id * ngeom + g]
+
+            min_val = pos - rbound - margin
+            max_val = pos + rbound + margin           
+
+            aamm_min[j] = wp.min(aamm_min[j], min_val)
+            aamm_max[j] = wp.max(aamm_max[j], max_val)
+
+
+    # Write results to output
+    dyn_body_aamm[tid * 6 + 0] = aamm_min[0]
+    dyn_body_aamm[tid * 6 + 1] = aamm_min[1]
+    dyn_body_aamm[tid * 6 + 2] = aamm_min[2]
+    dyn_body_aamm[tid * 6 + 3] = aamm_max[0]
+    dyn_body_aamm[tid * 6 + 4] = aamm_max[1]
+    dyn_body_aamm[tid * 6 + 5] = aamm_max[2]
+
+
+@wp.kernel
+def init_kernel(
+    # max_contact_points: int,
+    # nenv: int,
+    # dist: wp.array(dtype=wp.float32),
+    # pos: wp.array(dtype=wp.vec3),
+    # normal: wp.array(dtype=wp.vec3),
+    # g1: wp.array(dtype=wp.int32),
+    # g2: wp.array(dtype=wp.int32),
+    # includemargin: wp.array(dtype=wp.float32),
+    # friction: wp.array(dtype=wp.float32),
+    # solref: wp.array(dtype=wp.float32),
+    # solreffriction: wp.array(dtype=wp.float32),
+    # solimp: wp.array(dtype=wp.float32),
+    contact: Contact,
+):
+    world_id, contact_id = wp.tid()    
+
+    contact.dist[world_id, contact_id] = 1e12
+    contact.pos[world_id, contact_id ] = wp.vec3(0.0, 0.0, 0.0)
+    contact.normal[world_id, contact_id] = wp.vec3(0.0, 0.0, 0.0)
+    contact.g1[world_id, contact_id] = -1
+    contact.g2[world_id, contact_id] = -1
+    contact.includemargin[world_id, contact_id] = 0.0
+    contact.solref[world_id, contact_id, 0] = 0.02
+    contact.solref[world_id, contact_id, 1] = 1.0
+    contact.solimp[world_id, contact_id, 0] = 0.9
+    contact.solimp[world_id, contact_id, 1] = 0.95
+    contact.solimp[world_id, contact_id, 2] = 0.001
+    contact.solimp[world_id, contact_id, 3] = 0.5
+    contact.solimp[world_id, contact_id, 4] = 2.0
+    contact.friction[world_id, contact_id, 0] = 1.0
+    contact.friction[world_id, contact_id, 1] = 1.0
+    contact.friction[world_id, contact_id, 2] = 0.005
+    contact.friction[world_id, contact_id, 3] = 0.0001
+    contact.friction[world_id, contact_id, 4] = 0.0001
+    contact.solreffriction[world_id, contact_id, 0] = 0.0
+    contact.solreffriction[world_id, contact_id, 1] = 0.0
 
 
 @wp.func
@@ -476,6 +563,11 @@ def broad_phase(m: Model, d: Data):
 
 def init(m: Model, d: Data):
   # initialize output data
+  wp.launch(
+    kernel=init_kernel,
+    dim=(d.nworld, d.ncon),
+    inputs=[d.contact],
+  )
 
   pass
 
@@ -486,6 +578,8 @@ def broadphase(m: Model, d: Data):
   # generate body pairs
   # get geom AABBs in global frame
   # get geom pairs 
+
+  broad_phase(m, d)
 
   pass
     
