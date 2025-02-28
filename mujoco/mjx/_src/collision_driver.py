@@ -21,6 +21,9 @@ from .types import Contact
 from .types import GeomType
 from .types import MJ_MINVAL
 from .types import MJ_NREF
+from .types import MJ_NIMP
+from .types import array2df
+from .types import array3df
 from .collision_functions import plane_sphere
 from .collision_functions import plane_capsule
 from .collision_functions import plane_convex
@@ -45,6 +48,7 @@ from .collision_functions import ellipsoid_cylinder
 from .collision_functions import cylinder_cylinder
 from .collision_functions import box_box
 from .collision_functions import convex_convex
+from .support import where
 
 
 NUM_GEOM_TYPES = 8
@@ -581,16 +585,101 @@ def narrowphase(m: Model, d: Data):
   for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
     func, group_key = _COLLISION_FUNCS[i]
-    func(m, d, group_key)
+    func(m, d)#, group_key)
 
 def get_contact_solver_params(m: Model, d: Data):
-  # NP postprocessing
-  # finalize sum -> env contact offset + env contact counter
-  # get contact solver params
 
-  # do we need condim sorting, deepest penetrating contact etc in here?
+  @wp.kernel
+  def get_contact_solver_params(
+    geom: wp.array3d(dtype=wp.int32),
+    geom_priority: wp.array(dtype=wp.int32),
+    geom_solmix: wp.array(dtype=wp.float32),
+    geom_friction: array2df,
+    geom_solref: array2df,
+    geom_solimp: array2df,
+    geom_margin: wp.array(dtype=wp.float32),
+    geom_gap: wp.array(dtype=wp.float32),
+    world_contact_counter: wp.array(dtype=wp.int32),
+    # outputs
+    includemargin: array2df,
+    friction: array3df,
+    solref: array3df,
+    solreffriction: array3df,
+    solimp: array3df,
+  ):
+    worldid, tid = wp.tid()
 
-  pass
+    n_contact_pts = world_contact_counter[worldid]
+    if tid >= n_contact_pts:
+        return
+
+    g1 = geom[worldid, tid, 0]
+    g2 = geom[worldid, tid, 1]
+
+    margin = wp.max(geom_margin[g1], geom_margin[g2])
+    gap = wp.max(geom_gap[g1], geom_gap[g2])
+    solmix1 = geom_solmix[g1]
+    solmix2 = geom_solmix[g2]
+    mix = solmix1 / (solmix1 + solmix2)
+    mix = where((solmix1 < MJ_MINVAL) and (solmix2 < MJ_MINVAL), 0.5, mix)
+    mix = where((solmix1 < MJ_MINVAL) and (solmix2 >= MJ_MINVAL), 0.0, mix)
+    mix = where((solmix1 >= MJ_MINVAL) and (solmix2 < MJ_MINVAL), 1.0, mix)
+
+    p1 = geom_priority[g1]
+    p2 = geom_priority[g2]
+    mix = where(p1 == p2, mix, where(p1 > p2, 1.0, 0.0))
+    is_standard = (geom_solref[g1, 0] > 0) and (geom_solref[g2, 0] > 0)
+
+    solref_ = wp.vec(0.0, length=MJ_NREF, dtype=wp.float32)
+    for i in range(MJ_NREF):
+        solref_[i] = mix * geom_solref[g1, i] + (1.0 - mix) * geom_solref[g2, i]
+        solref_[i] = where(is_standard, solref_[i], wp.min(geom_solref[g1, i], geom_solref[g2, i]))
+
+    # solimp_ = wp.zeros(mjNIMP, dtype=float)
+    # for i in range(mjNIMP):
+    #     solimp_[i] = mix * geom_solimp[i + g1 * mjNIMP] + (1 - mix) * geom_solimp[i + g2 * mjNIMP]
+
+    friction_ = wp.vec3(0.0, 0.0, 0.0)  # wp.zeros(3, dtype=float)
+    for i in range(3):
+        friction_[i] = wp.max(geom_friction[g1, i], geom_friction[g2, i])
+
+    includemargin[worldid, tid] = margin - gap
+    friction[worldid, tid, 0] = friction_[0]
+    friction[worldid, tid, 1] = friction_[0]
+    friction[worldid, tid, 2] = friction_[1]
+    friction[worldid, tid, 3] = friction_[2]
+    friction[worldid, tid, 4] = friction_[2]
+
+    for i in range(2):
+        solref[worldid, tid, i] = solref_[i]
+
+    for i in range(MJ_NIMP):
+        solimp[worldid, tid, i] = mix * geom_solimp[g1, i] + (1.0 - mix) * geom_solimp[g2, i]  # solimp_[i]
+
+  wp.launch(
+      get_contact_solver_params,
+      dim=[d.nworld, d.ncon],
+      inputs=[
+          d.contact.geom,
+          m.geom_priority,
+          m.geom_solmix,
+          m.geom_friction,
+          m.geom_solref,
+          m.geom_solimp,
+          m.geom_margin,
+          m.geom_gap,
+          d.contact_counter,
+      ],
+      outputs=[
+          d.contact.includemargin,
+          d.contact.friction,
+          d.contact.solref,
+          d.contact.solreffriction,
+          d.contact.solimp,
+      ],
+  )
+
+  # TODO(team): do we need condim sorting, deepest penetrating contact here?
 
 def collision(m: Model, d: Data):
   """Collision detection."""
