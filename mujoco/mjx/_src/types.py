@@ -390,4 +390,4 @@ class Data:
   # narrowphase temp arrays
   narrowphase_candidate_worldid: wp.array(dtype=wp.int32, ndim=2) 
   narrowphase_candidate_geom: wp.array(dtype=wp.vec2i, ndim=2)
-  narrowphase_candidate_group_count: wp.array(dtype=wp.int32, ndim=2)
+  narrowphase_candidate_group_count: wp.array(dtype=wp.int32, ndim=1)
