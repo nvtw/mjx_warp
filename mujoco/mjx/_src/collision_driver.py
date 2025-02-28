@@ -138,7 +138,7 @@ def get_dyn_body_aamm(
 
     #bid = tid % nbody
     #env_id = tid // nbody
-    model_id = env_id % nmodel
+    model_id = env_id % nmodel # is this line correct?
 
     # Initialize AAMM with extreme values
     aamm_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
@@ -363,6 +363,16 @@ def broad_phase_sweep_and_prune_kernel(
   data_result: wp.array(dtype=wp.vec2i, ndim=2),
   result_count: wp.array(dtype=wp.int32, ndim=1),
   boxes_sorted: wp.array(dtype=wp.vec3, ndim=3),
+
+  # The following are used to filter the broadphase pairs
+  #filter_parent: bool,
+  nexclude: int,
+  body_parentid: wp.array(dtype=int),
+  body_weldid: wp.array(dtype=int),
+  body_contype: wp.array(dtype=int),
+  body_conaffinity: wp.array(dtype=int),
+  #body_has_plane: wp.array(dtype=bool),
+  exclude_signature: wp.array(dtype=int),
 ):
   threadId = wp.tid()  # Get thread ID
   if length > 0:
@@ -393,9 +403,44 @@ def broad_phase_sweep_and_prune_kernel(
 
     idx2 = data_indexer[worldId, j]
 
+    body1 = wp.min(idx1, idx2)
+    body2 = wp.max(idx1, idx2)
+
+    # Collision filtering start
+    if (body_contype[body1] == 0 and body_conaffinity[body1] == 0) or (
+        body_contype[body2] == 0 and body_conaffinity[body2] == 0
+    ):
+        continue
+
+    signature = (body1 << 16) + body2
+    filtered = bool(False)
+    for i in range(nexclude):
+        if exclude_signature[i] == signature:
+            filtered = True
+            break
+        
+    if filtered:
+        continue
+
+    w1 = body_weldid[body1]
+    w2 = body_weldid[body2]
+    if w1 == w2:
+        continue
+
+    # Filter parent not supported yet
+    # w1_p = body_weldid[body_parentid[w1]]
+    # w2_p = body_weldid[body_parentid[w2]]
+    # if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
+    #     continue
+    # Collision filtering end
+
     # Check if the boxes overlap
-    if idx1 != idx2 and overlap(worldId, i, j, boxes_sorted):
-      pair = wp.vec2i(wp.min(idx1, idx2), wp.max(idx1, idx2))
+    if body1 != body2 and overlap(worldId, i, j, boxes_sorted):
+      
+      #if not (body_has_plane[body1] or body_has_plane[body2]):
+      #  return
+      
+      pair = wp.vec2i(body1, body2)
 
       id = wp.atomic_add(result_count, worldId, 1)
 
@@ -525,6 +570,14 @@ def broad_phase(m: Model, d: Data):
       d.broadphase_pairs,
       d.result_count,
       d.boxes_sorted,
+      #filter_parent,
+      m.nexclude,
+      m.body_parentid,
+      m.body_weldid,
+      m.body_contype,
+      m.body_conaffinity,
+      #body_has_plane,
+      m.exclude_signature,
     ],
   )
 

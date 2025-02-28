@@ -191,7 +191,8 @@ class Model:
   ngeom: int
   nsite: int
   nmocap: int
-  nM: int
+  nM: int  
+  nexclude : int
   opt: Option
   stat: Statistic
   qpos0: wp.array(dtype=wp.float32, ndim=1)
@@ -277,6 +278,12 @@ class Model:
   body_geomnum: wp.array(dtype=wp.int32, ndim=1)
   body_geomadr: wp.array(dtype=wp.int32, ndim=1)
   geom_rbound: wp.array(dtype=wp.float32, ndim=2)
+
+  body_parentid: wp.array(dtype=wp.int32, ndim=1) 
+  body_weldid: wp.array(dtype=wp.int32, ndim=1)    
+  body_contype: wp.array(dtype=wp.int32, ndim=1)   
+  body_conaffinity: wp.array(dtype=wp.int32, ndim=1) 
+  exclude_signature: wp.array(dtype=wp.int32, ndim=1)  
 
 @wp.struct
 class Contact:
