@@ -47,66 +47,43 @@ from .collision_functions import cylinder_cylinder
 from .collision_functions import box_box
 from .collision_functions import convex_convex
 
-# TODO: combine the two lists, it matters that the order is the same!
-_COLLISION_BUCKET_KEY = {
-    (GeomType.PLANE, GeomType.SPHERE):        0, #plane_sphere,
-    (GeomType.PLANE, GeomType.CAPSULE):       1, #plane_capsule,
-    (GeomType.PLANE, GeomType.BOX):           2, #plane_convex,
-    (GeomType.PLANE, GeomType.ELLIPSOID):     3, #plane_ellipsoid,
-    (GeomType.PLANE, GeomType.CYLINDER):      4, #plane_cylinder,
-    (GeomType.PLANE, GeomType.MESH):          5, #plane_convex,
-    (GeomType.HFIELD, GeomType.SPHERE):       6, #hfield_sphere,
-    (GeomType.HFIELD, GeomType.CAPSULE):      7, #hfield_capsule,
-    (GeomType.HFIELD, GeomType.BOX):          8, #hfield_convex,
-    (GeomType.HFIELD, GeomType.MESH):         9, #hfield_convex,
-    (GeomType.SPHERE, GeomType.SPHERE):       10, #sphere_sphere,
-    (GeomType.SPHERE, GeomType.CAPSULE):      11, #sphere_capsule,
-    (GeomType.SPHERE, GeomType.CYLINDER):     12, #sphere_cylinder,
-    (GeomType.SPHERE, GeomType.ELLIPSOID):    13, #sphere_ellipsoid,
-    (GeomType.SPHERE, GeomType.BOX):          14, #sphere_convex,
-    (GeomType.SPHERE, GeomType.MESH):         15, #sphere_convex,
-    (GeomType.CAPSULE, GeomType.CAPSULE):     16, #capsule_capsule,
-    (GeomType.CAPSULE, GeomType.BOX):         17, #capsule_convex,
-    (GeomType.CAPSULE, GeomType.ELLIPSOID):   18, #capsule_ellipsoid,
-    (GeomType.CAPSULE, GeomType.CYLINDER):    19, #capsule_cylinder,
-    (GeomType.CAPSULE, GeomType.MESH):        20, #capsule_convex,
-    (GeomType.ELLIPSOID, GeomType.ELLIPSOID): 21, #ellipsoid_ellipsoid,
-    (GeomType.ELLIPSOID, GeomType.CYLINDER):  22, #ellipsoid_cylinder,
-    (GeomType.CYLINDER, GeomType.CYLINDER):   23, #cylinder_cylinder,
-    (GeomType.BOX, GeomType.BOX):             24, #box_box,
-    (GeomType.BOX, GeomType.MESH):            25, #convex_convex,
-    (GeomType.MESH, GeomType.MESH):           26, #convex_convex,
-}
 
-_COLLISION_FUNCS = {
-  plane_sphere,
-  plane_capsule,
-  plane_convex,
-  plane_ellipsoid,
-  plane_cylinder,
-  plane_convex,
-  hfield_sphere,
-  hfield_capsule,
-  hfield_convex,
-  hfield_convex,
-  sphere_sphere,
-  sphere_capsule,
-  sphere_cylinder,
-  sphere_ellipsoid,
-  sphere_convex,
-  sphere_convex,
-  capsule_capsule,
-  capsule_convex,
-  capsule_ellipsoid,
-  capsule_cylinder,
-  capsule_convex,
-  ellipsoid_ellipsoid,
-  ellipsoid_cylinder,
-  cylinder_cylinder,
-  box_box,
-  convex_convex,
-  convex_convex,
-}
+NUM_GEOM_TYPES = 8
+
+@wp.func
+def group_key(type1: int, type2: int)-> int:
+  return type1 + type2 * NUM_GEOM_TYPES
+
+# same order as in MJX - collision function and group key.
+_COLLISION_FUNCS = [
+  (plane_sphere, group_key(GeomType.PLANE.value, GeomType.SPHERE.value)),
+  (plane_capsule, group_key(GeomType.PLANE.value, GeomType.CAPSULE.value)),
+  (plane_convex, group_key(GeomType.PLANE.value, GeomType.BOX.value)),
+  (plane_ellipsoid, group_key(GeomType.PLANE.value, GeomType.ELLIPSOID.value)),
+  (plane_cylinder, group_key(GeomType.PLANE.value, GeomType.CYLINDER.value)),
+  (plane_convex, group_key(GeomType.PLANE.value, GeomType.MESH.value)),
+  (hfield_sphere, group_key(GeomType.HFIELD.value, GeomType.SPHERE.value)),
+  (hfield_capsule, group_key(GeomType.HFIELD.value, GeomType.CAPSULE.value)),
+  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.BOX.value)),
+  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.MESH.value)),
+  (sphere_sphere, group_key(GeomType.SPHERE.value, GeomType.SPHERE.value)),
+  (sphere_capsule, group_key(GeomType.SPHERE.value, GeomType.CAPSULE.value)),
+  (sphere_cylinder, group_key(GeomType.SPHERE.value, GeomType.CYLINDER.value)),
+  (sphere_ellipsoid, group_key(GeomType.SPHERE.value, GeomType.ELLIPSOID.value)),
+  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.BOX.value)),
+  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.MESH.value)),
+  (capsule_capsule, group_key(GeomType.CAPSULE.value, GeomType.CAPSULE.value)),
+  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.BOX.value)),
+  (capsule_ellipsoid, group_key(GeomType.CAPSULE.value, GeomType.ELLIPSOID.value)),
+  (capsule_cylinder, group_key(GeomType.CAPSULE.value, GeomType.CYLINDER.value)),
+  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.MESH.value)),
+  (ellipsoid_ellipsoid, group_key(GeomType.ELLIPSOID.value, GeomType.ELLIPSOID.value)),
+  (ellipsoid_cylinder, group_key(GeomType.ELLIPSOID.value, GeomType.CYLINDER.value)),
+  (cylinder_cylinder, group_key(GeomType.CYLINDER.value, GeomType.CYLINDER.value)),
+  (box_box, group_key(GeomType.BOX.value, GeomType.BOX.value)),
+  (convex_convex, group_key(GeomType.BOX.value, GeomType.MESH.value)),
+  (convex_convex, group_key(GeomType.MESH.value, GeomType.MESH.value)),
+]
 
 #####################################################################################
 # BROADPHASE
@@ -555,9 +532,7 @@ def broad_phase(m: Model, d: Data):
     ],
   )
 
-##############################################################################################
-# NARROW PHASE PREPROCESSING
-##############################################################################################
+###########################################################################################3
 
 def init(m: Model, d: Data):
   # initialize output data
@@ -608,13 +583,13 @@ def narrowphase(m: Model, d: Data):
   # we need to figure out how to keep the overhead of this small - not launching anything
   # for pair types without collisions, as well as updating the launch dimensions.
 
-  for i in range(len(_COLLISION_FUNCS)):
-    # we will maintain a list of number of overlaps per-pair type on GPU
-    # and a base index of the first geom pair that needs to be processed
+  # we run the collision functions in increasing condim order to get the grouping 
+  # right from the get-go.
 
+  for i in range(len(_COLLISION_FUNCS)):
     # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
-    func = _COLLISION_FUNCS[i]
-    func(m, d)
+    func, group_key = _COLLISION_FUNCS[i]
+    func(m, d, group_key)
 
 def get_contact_solver_params(m: Model, d: Data):
   # NP postprocessing
@@ -631,13 +606,6 @@ def collision(m: Model, d: Data):
   # AD: based on engine_collision_driver.py in Eric's warp fork/mjx-collisions-dev
   # which is further based on the CUDA code here: 
   # https://github.com/btaba/mujoco/blob/warp-collisions/mjx/mujoco/mjx/_src/cuda/engine_collision_driver.cu.cc#L458-L583
-
-  # these are the steps that cover init + broadphase in the reference implementation
-  # initialize output data
-  # generate body AAMMs
-  # generate body pairs
-  # get geom AABBs in global frame
-  # get geom pairs 
 
   init(m, d)
   broadphase(m, d)
