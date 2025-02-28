@@ -159,9 +159,6 @@ vec10 = vec10f
 array2df = wp.array2d(dtype=wp.float32)
 array3df = wp.array3d(dtype=wp.float32)
 
-BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
-
-
 @wp.struct
 class Option:
   timestep: float
@@ -269,6 +266,11 @@ class Model:
   actuator_dyntype: wp.array(dtype=wp.int32, ndim=1)
   actuator_dynprm: wp.array(dtype=vec10f, ndim=1)
 
+  geom_margin: wp.array(dtype=wp.float32, ndim=1)
+  body_geomnum: wp.array(dtype=wp.int32, ndim=1)
+  body_geomadr: wp.array(dtype=wp.int32, ndim=1)
+  geom_rbound: wp.array(dtype=wp.float32, ndim=2)
+
 @wp.struct
 class Contact:
   dist: wp.array(dtype=wp.float32, ndim=2)
@@ -359,11 +361,11 @@ class Data:
   max_num_overlaps_per_world: int
   broadphase_pairs: wp.array(dtype=wp.vec2i, ndim=2)
   result_count: wp.array(dtype=wp.int32, ndim=1)
-  boxes_sorted: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2)
+  boxes_sorted: wp.array(dtype=wp.vec3, ndim=3)
   data_start: wp.array(dtype=wp.float32, ndim=2)
   data_end: wp.array(dtype=wp.float32, ndim=2)
   data_indexer: wp.array(dtype=wp.int32, ndim=2)
   ranges: wp.array(dtype=wp.int32, ndim=2)
   cumulative_sum: wp.array(dtype=wp.int32, ndim=1)
   segment_indices: wp.array(dtype=wp.int32, ndim=1)
-  geom_aabb: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1)
+  dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3)

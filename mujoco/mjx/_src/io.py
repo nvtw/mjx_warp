@@ -194,6 +194,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.actuator_actadr = wp.array(mjm.actuator_actadr, dtype=wp.int32, ndim=1)
   m.actuator_dyntype = wp.array(mjm.actuator_dyntype, dtype=wp.int32, ndim=1)
   m.actuator_dynprm = wp.array(mjm.actuator_dynprm, dtype=types.vec10f, ndim=1)
+  m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
+  m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
+  m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
+  m.geom_rbound = wp.array(mjm.geom_rbound, dtype=wp.vec3, ndim=2)
 
   return m
 

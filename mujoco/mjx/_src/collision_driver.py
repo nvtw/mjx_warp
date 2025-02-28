@@ -112,54 +112,52 @@ _COLLISION_FUNCS = {
 # BROADPHASE
 #####################################################################################
 # old kernel for aabb calculation - not sure if this is correct
-@wp.func
-def transform_aabb(
-  aabb: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
-  pos: wp.vec3,
-  rot: wp.mat33,
-) -> wp.types.matrix(shape=(2, 3), dtype=wp.float32):
-  # Extract center and extents from AABB
-  center = aabb[0]
-  extents = aabb[1]
+# @wp.func
+# def transform_aabb(
+#   aabb: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
+#   pos: wp.vec3,
+#   rot: wp.mat33,
+# ) -> wp.types.matrix(shape=(2, 3), dtype=wp.float32):
+#   # Extract center and extents from AABB
+#   center = aabb[0]
+#   extents = aabb[1]
 
-  absRot = rot
-  absRot[0, 0] = wp.abs(rot[0, 0])
-  absRot[0, 1] = wp.abs(rot[0, 1])
-  absRot[0, 2] = wp.abs(rot[0, 2])
-  absRot[1, 0] = wp.abs(rot[1, 0])
-  absRot[1, 1] = wp.abs(rot[1, 1])
-  absRot[1, 2] = wp.abs(rot[1, 2])
-  absRot[2, 0] = wp.abs(rot[2, 0])
-  absRot[2, 1] = wp.abs(rot[2, 1])
-  absRot[2, 2] = wp.abs(rot[2, 2])
-  world_extents = extents * absRot
+#   absRot = rot
+#   absRot[0, 0] = wp.abs(rot[0, 0])
+#   absRot[0, 1] = wp.abs(rot[0, 1])
+#   absRot[0, 2] = wp.abs(rot[0, 2])
+#   absRot[1, 0] = wp.abs(rot[1, 0])
+#   absRot[1, 1] = wp.abs(rot[1, 1])
+#   absRot[1, 2] = wp.abs(rot[1, 2])
+#   absRot[2, 0] = wp.abs(rot[2, 0])
+#   absRot[2, 1] = wp.abs(rot[2, 1])
+#   absRot[2, 2] = wp.abs(rot[2, 2])
+#   world_extents = extents * absRot
 
-  # Transform center
-  new_center = rot @ center + pos
+#   # Transform center
+#   new_center = rot @ center + pos
 
-  # Return new AABB as matrix with center and full size
-  result = BoxType()
-  result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-  result[1] = wp.vec3(world_extents.x, world_extents.y, world_extents.z)
-  return result
+#   # Return new AABB as matrix with center and full size
+#   result = BoxType()
+#   result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
+#   result[1] = wp.vec3(world_extents.x, world_extents.y, world_extents.z)
+#   return result
 
 # use this kernel to get the AAMM for each body
 @wp.kernel
 def get_dyn_body_aamm(
-    nenv: int, nbody: int, nmodel: int, ngeom: int,
+    nmodel: int, ngeom: int,
     body_geomnum: wp.array(dtype=int),
     body_geomadr: wp.array(dtype=int),
     geom_margin: wp.array(dtype=float),
     geom_xpos: wp.array(dtype=wp.vec3),
     geom_rbound: wp.array(dtype=float),
-    dyn_body_aamm: wp.array(dtype=float),
+    dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3),
 ):
-    tid = wp.tid()
-    if tid >= nenv * nbody:
-        return
+    env_id, bid = wp.tid()    
 
-    bid = tid % nbody
-    env_id = tid // nbody
+    #bid = tid % nbody
+    #env_id = tid // nbody
     model_id = env_id % nmodel
 
     # Initialize AAMM with extreme values
@@ -183,12 +181,8 @@ def get_dyn_body_aamm(
 
 
     # Write results to output
-    dyn_body_aamm[tid * 6 + 0] = aamm_min[0]
-    dyn_body_aamm[tid * 6 + 1] = aamm_min[1]
-    dyn_body_aamm[tid * 6 + 2] = aamm_min[2]
-    dyn_body_aamm[tid * 6 + 3] = aamm_max[0]
-    dyn_body_aamm[tid * 6 + 4] = aamm_max[1]
-    dyn_body_aamm[tid * 6 + 5] = aamm_max[2]
+    dyn_body_aamm[env_id, bid, 0] = aamm_min
+    dyn_body_aamm[env_id, bid, 1] = aamm_max
 
 
 @wp.kernel
@@ -233,14 +227,16 @@ def init_kernel(
 
 @wp.func
 def overlap(
-  a: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
-  b: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
+  world_id: int,  
+  a: int,
+  b: int,
+  boxes: wp.array(dtype=wp.vec3, ndim=3),
 ) -> bool:
   # Extract centers and sizes
-  a_center = a[0]
-  a_size = a[1]
-  b_center = b[0]
-  b_size = b[1]
+  a_center = boxes[world_id, a, 0]
+  a_size = boxes[world_id, a, 1]
+  b_center = boxes[world_id, b, 0]
+  b_size = boxes[world_id, b, 1]
 
   # Calculate min/max from center and size
   a_min = a_center - 0.5 * a_size
@@ -259,9 +255,9 @@ def overlap(
 
 @wp.kernel
 def broad_phase_project_boxes_onto_sweep_direction_kernel(
-  boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1),
-  box_translations: wp.array(dtype=wp.vec3, ndim=2),
-  box_rotations: wp.array(dtype=wp.mat33, ndim=2),
+  boxes: wp.array(dtype=wp.vec3, ndim=3),
+  box_translations: wp.array(dtype=wp.vec3, ndim=3),
+  box_rotations: wp.array(dtype=wp.mat33, ndim=3),
   data_start: wp.array(dtype=wp.float32, ndim=2),
   data_end: wp.array(dtype=wp.float32, ndim=2),
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
@@ -271,10 +267,10 @@ def broad_phase_project_boxes_onto_sweep_direction_kernel(
 ):
   worldId, i = wp.tid()
 
-  box = boxes[i]  # box is a vector6
-  box = transform_aabb(box, box_translations[worldId, i], box_rotations[worldId, i])
-  box_center = box[0]
-  box_size = box[1]
+  # box = boxes[worldId, i]
+  # box = transform_aabb(box, box_translations[worldId, i], box_rotations[worldId, i])
+  box_center = boxes[worldId, i, 0]
+  box_size = boxes[worldId, i, 1]
   center = wp.dot(direction, box_center)
   d = wp.dot(box_size, abs_dir)
   f = center - d
@@ -290,10 +286,10 @@ def broad_phase_project_boxes_onto_sweep_direction_kernel(
 
 @wp.kernel
 def reorder_bounding_boxes_kernel(
-  boxes: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=1),
-  box_translations: wp.array(dtype=wp.vec3, ndim=2),
-  box_rotations: wp.array(dtype=wp.mat33, ndim=2),
-  boxes_sorted: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2),
+  boxes: wp.array(dtype=wp.vec3, ndim=3),
+  box_translations: wp.array(dtype=wp.vec3, ndim=3),
+  box_rotations: wp.array(dtype=wp.mat33, ndim=3),
+  boxes_sorted: wp.array(dtype=wp.vec3, ndim=3),
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
 ):
   worldId, i = wp.tid()
@@ -302,13 +298,15 @@ def reorder_bounding_boxes_kernel(
   mapped = data_indexer[worldId, i]
 
   # Get the box from the original boxes array
-  box = boxes[mapped]
-  box = transform_aabb(
-    box, box_translations[worldId, mapped], box_rotations[worldId, mapped]
-  )
+  box_min = boxes[worldId, mapped, 0]
+  box_max = boxes[worldId, mapped, 1]
+  # box = transform_aabb(
+  #   box, box_translations[worldId, mapped], box_rotations[worldId, mapped]
+  # )
 
   # Reorder the box into the sorted array
-  boxes_sorted[worldId, i] = box
+  boxes_sorted[worldId, i, 0] = box_min
+  boxes_sorted[worldId, i, 1] = box_max
 
 @wp.func
 def find_first_greater_than(
@@ -388,7 +386,7 @@ def broad_phase_sweep_and_prune_kernel(
   data_indexer: wp.array(dtype=wp.int32, ndim=2),
   data_result: wp.array(dtype=wp.vec2i, ndim=2),
   result_count: wp.array(dtype=wp.int32, ndim=1),
-  boxes_sorted: wp.array(dtype=wp.types.matrix(shape=(2, 3), dtype=wp.float32), ndim=2),
+  boxes_sorted: wp.array(dtype=wp.vec3, ndim=3),
 ):
   threadId = wp.tid()  # Get thread ID
   if length > 0:
@@ -415,12 +413,12 @@ def broad_phase_sweep_and_prune_kernel(
 
     idx1 = data_indexer[worldId, i]
 
-    box1 = boxes_sorted[worldId, i]
+    # box1 = boxes_sorted[worldId, i]
 
     idx2 = data_indexer[worldId, j]
 
     # Check if the boxes overlap
-    if idx1 != idx2 and overlap(box1, boxes_sorted[worldId, j]):
+    if idx1 != idx2 and overlap(worldId, i, j, boxes_sorted):
       pair = wp.vec2i(wp.min(idx1, idx2), wp.max(idx1, idx2))
 
       id = wp.atomic_add(result_count, worldId, 1)
@@ -445,7 +443,7 @@ def broad_phase(m: Model, d: Data):
     kernel=broad_phase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[
-      d.geom_aabb,
+      d.dyn_body_aamm,
       d.geom_xpos,
       d.geom_xmat,
       d.data_start,
@@ -578,6 +576,22 @@ def broadphase(m: Model, d: Data):
   # generate body pairs
   # get geom AABBs in global frame
   # get geom pairs 
+
+  # generate body AAMMs
+  wp.launch(
+    kernel=get_dyn_body_aamm,
+    dim=(d.nworld, m.nbody),
+    inputs=[
+      m.nbody,
+      m.ngeom,
+      m.body_geomnum,
+      m.body_geomadr,
+      m.geom_margin,
+      d.geom_xpos,
+      m.geom_rbound,
+      d.dyn_body_aamm,
+    ],
+  )
 
   broad_phase(m, d)
 
