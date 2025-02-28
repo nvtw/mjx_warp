@@ -150,6 +150,7 @@ class GeomType(enum.IntEnum):
   MESH = mujoco.mjtGeom.mjGEOM_MESH
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
 
+NUM_GEOM_TYPES = 8
 
 class vec10f(wp.types.vector(length=10, dtype=wp.float32)):
   pass
@@ -237,6 +238,7 @@ class Model:
   jnt_stiffness: wp.array(dtype=wp.float32, ndim=1)
   jnt_actfrclimited: wp.array(dtype=wp.bool, ndim=1)
   jnt_actfrcrange: wp.array(dtype=wp.vec2, ndim=1)
+  geom_type: wp.array(dtype=wp.int32, ndim=1)
   geom_bodyid: wp.array(dtype=wp.int32, ndim=1)
   geom_pos: wp.array(dtype=wp.vec3, ndim=1)
   geom_quat: wp.array(dtype=wp.quat, ndim=1)
@@ -384,3 +386,8 @@ class Data:
   cumulative_sum: wp.array(dtype=wp.int32, ndim=1)
   segment_indices: wp.array(dtype=wp.int32, ndim=1)
   dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3)
+
+  # narrowphase temp arrays
+  narrowphase_candidate_worldid: wp.array(dtype=wp.int32, ndim=2) 
+  narrowphase_candidate_geom: wp.array(dtype=wp.vec2i, ndim=2)
+  narrowphase_candidate_group_count: wp.array(dtype=wp.int32, ndim=2)

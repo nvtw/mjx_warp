@@ -22,9 +22,6 @@ def plane_sphere(m: Model, d: Data):
 def plane_capsule(m: Model, d: Data):
     pass
 
-def plane_convex(m: Model, d: Data):
-    pass
-
 def plane_ellipsoid(m: Model, d: Data):
     pass
 
@@ -32,7 +29,7 @@ def plane_cylinder(m: Model, d: Data):
     pass
 
 def plane_convex(m: Model, d: Data):
-    pass
+    print("running plane convex")
 
 def hfield_sphere(m: Model, d: Data):
     pass

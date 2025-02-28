@@ -167,6 +167,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.jnt_stiffness = wp.array(mjm.jnt_stiffness, dtype=wp.float32, ndim=1)
   m.jnt_actfrclimited = wp.array(mjm.jnt_actfrclimited, dtype=wp.bool, ndim=1)
   m.jnt_actfrcrange = wp.array(mjm.jnt_actfrcrange, dtype=wp.vec2, ndim=1)
+  m.geom_type = wp.array(mjm.geom_type, dtype=wp.int32, ndim=1)
   m.geom_bodyid = wp.array(mjm.geom_bodyid, dtype=wp.int32, ndim=1)
   m.geom_pos = wp.array(mjm.geom_pos, dtype=wp.vec3, ndim=1)
   m.geom_quat = wp.array(mjm.geom_quat, dtype=wp.quat, ndim=1)
@@ -323,8 +324,13 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, njmax: int = -1) -> types.Da
   d.cumulative_sum = wp.zeros(nworld * mjm.ngeom, dtype=wp.int32)
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
-
   d.dyn_body_aamm = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
+
+  # internal narrowphase tmp arrays
+  ngroups = types.NUM_GEOM_TYPES
+  d.narrowphase_candidate_worldid = wp.empty((ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2) 
+  d.narrowphase_candidate_geom = wp.empty((ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2)
+  d.narrowphase_candidate_group_count = wp.zeros(ngroups, dtype=wp.int32, ndim=1)
 
   return d
 
@@ -494,7 +500,12 @@ def put_data(
   d.cumulative_sum = wp.zeros(nworld * mjm.ngeom, dtype=wp.int32)
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
-
   d.dyn_body_aamm = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
+
+  # internal narrowphase tmp arrays
+  ngroups = types.NUM_GEOM_TYPES
+  d.narrowphase_candidate_worldid = wp.empty((ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2) 
+  d.narrowphase_candidate_geom = wp.empty((ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2)
+  d.narrowphase_candidate_group_count = wp.zeros(ngroups, dtype=wp.int32, ndim=1)
 
   return d
