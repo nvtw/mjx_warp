@@ -149,6 +149,7 @@ class GeomType(enum.IntEnum):
   CYLINDER = mujoco.mjtGeom.mjGEOM_CYLINDER
   BOX = mujoco.mjtGeom.mjGEOM_BOX
   MESH = mujoco.mjtGeom.mjGEOM_MESH
+  CONVEX = mujoco.mjtGeom.mjGEOM_CONVEX
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
 
 
