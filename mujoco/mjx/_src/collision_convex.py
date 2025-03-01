@@ -16,6 +16,51 @@ from typing import Any
 
 import warp as wp
 
+from .types import Contact, Data, Model
+
+
+@wp.func
+def get_axis(
+    axis_idx: int,
+    normals_a: wp.array(dtype=wp.vec3, ndim=1),
+    normals_b: wp.array(dtype=wp.vec3, ndim=1),
+    R: wp.mat33,
+) -> tuple[wp.vec3, bool]:
+    """Get the axis at index axis_idx.
+    R: rotation matrix between box a and b
+    Axes 0-12 are face normals of boxes a & b
+    Axes 12-21 are edge cross products."""
+    if axis_idx < 6: # a faces
+        axis = normals_a[axis_idx]
+        is_degenerate = False
+    elif axis_idx < 12: # b faces
+        axis = normals_b[axis_idx-6]
+        is_degenerate = False
+    else: # edges
+        assert axis_idx < 21
+        edges = axis_idx - 12
+        axis_a, axis_b = edges / 3, edges % 3
+        edge_a = R[axis_a]
+        if axis_b == 0:
+            axis = wp.vec3(0.0, -edge_a[2], edge_a[1])
+        elif axis_b == 1:
+            axis = wp.vec3(edge_a[2], 0.0, -edge_a[0])
+        else:
+            axis = wp.vec3(-edge_a[1], edge_a[0], 0.0)
+        is_degenerate = wp.length_sq(axis) < 1e-6
+    return wp.normalize(axis), is_degenerate
+
+
+def box_box(
+  m: Model,
+  d: Data,
+  worldId: wp.array(dtype=wp.int32, ndim=1),
+  planeIndex: wp.array(dtype=wp.int32, ndim=1),
+  convexIndex: wp.array(dtype=wp.int32, ndim=1),
+  outBaseIndex: wp.array(dtype=wp.int32, ndim=1),
+  result: Contact,
+):
+  """Calculates contacts between pairs of boxes."""
 @wp.func
 def _argmax(a: wp.array(dtype=Any)) -> wp.int32:
     m = type(a[0])(a[0])
