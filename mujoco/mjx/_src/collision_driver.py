@@ -255,61 +255,58 @@ def broadphase_sweep_and_prune_kernel(
 
     worldId = i // m.ngeom
     i = i % m.ngeom
-
-    # world_id_j = j // m.ngeom
     j = j % m.ngeom
 
-    # assert worldId == world_id_j, "Only boxes in the same world can be compared"
-    # TODO: Remove print if debugging is done
-    # if worldId != world_id_j:
-    #     print("Only boxes in the same world can be compared")
-
     idx1 = d.data_indexer[worldId, i]
-
-    # box1 = boxes_sorted[worldId, i]
-
     idx2 = d.data_indexer[worldId, j]
+
+    body1 = m.geom_bodyid[i]
+    body2 = m.geom_bodyid[j]
 
     body1 = wp.min(idx1, idx2)
     body2 = wp.max(idx1, idx2)
 
     # Collision filtering start
-    """
-    if (body_contype[body1] == 0 and body_conaffinity[body1] == 0) or (
-      body_contype[body2] == 0 and body_conaffinity[body2] == 0
-    ):
+    # self collisions
+    if body1 == body2:
       threadId += num_threads
       continue
 
-    signature = (body1 << 16) + body2
-    filtered = bool(False)
-    for i in range(nexclude):
-      if exclude_signature[i] == signature:
-        filtered = True
-        break
+    # contype/affinity filtering
+    contype1 = m.body_contype[body1]
+    contype2 = m.body_contype[body2]
+    conaffinity1 = m.body_conaffinity[body1]
+    conaffinity2 = m.body_conaffinity[body2]
 
-    if filtered:
+    compatible = (contype1 & conaffinity2) or (contype2 & conaffinity1)
+    if not compatible:
       threadId += num_threads
       continue
 
-    w1 = body_weldid[body1]
-    w2 = body_weldid[body2]
+    # parent-child
+    filter_parent = wp.static(m.opt.disableflags & types.DisableBit.FILTER_PARENT.value)
+    w1_p = m.body_weldid[m.body_parentid[body1]]
+    w2_p = m.body_weldid[m.body_parentid[body2]]
+    if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
+      threadId += num_threads
+      continue
+
+    # welded bodies
+    w1 = m.body_weldid[body1]
+    w2 = m.body_weldid[body2]
     if w1 == w2:
       threadId += num_threads
       continue
 
-    # Filter parent not supported yet
-    # w1_p = body_weldid[body_parentid[w1]]
-    # w2_p = body_weldid[body_parentid[w2]]
-    # if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
-          threadId += num_threads
-    #     continue
-    # Collision filtering end
-    """
+    # exclude
+    signature = (body1 << 16) + body2
+    filtered = bool(False)
+    for i in range(m.nexclude):
+      if m.exclude_signature[i] == signature:
+        filtered = True
+        break
 
-    body1 = m.geom_bodyid[i]
-    body2 = m.geom_bodyid[j]
-    if body1 == body2:
+    if filtered:
       threadId += num_threads
       continue
 
@@ -413,7 +410,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
   if segmented_sort_available:
     wp.utils.segmented_sort_pairs(
-      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices
+      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
     )
   else:
     # Sort each world's segment separately
