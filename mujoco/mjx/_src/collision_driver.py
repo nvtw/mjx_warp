@@ -35,36 +35,36 @@ from .support import group_key
 # BROADPHASE
 #####################################################################################
 
-# use this kernel to get the AAMM for each body
-@wp.kernel
-def get_dyn_body_aamm(
-  m: Model,
-  d: Data,
-):
-  env_id, bid = wp.tid()
+# # use this kernel to get the AAMM for each body
+# @wp.kernel
+# def get_dyn_body_aamm(
+#   m: Model,
+#   d: Data,
+# ):
+#   env_id, bid = wp.tid()
 
-  # Initialize AAMM with extreme values
-  aamm_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
-  aamm_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
+#   # Initialize AAMM with extreme values
+#   aamm_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
+#   aamm_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
 
-  # Iterate over all geometries associated with the body
-  for i in range(m.body_geomnum[bid]):
-    g = m.body_geomadr[bid] + i
+#   # Iterate over all geometries associated with the body
+#   for i in range(m.body_geomnum[bid]):
+#     g = m.body_geomadr[bid] + i
 
-    for j in range(3):
-      pos = d.geom_xpos[env_id, g][j]
-      rbound = m.geom_rbound[g]
-      margin = m.geom_margin[g]
+#     for j in range(3):
+#       pos = d.geom_xpos[env_id, g][j]
+#       rbound = m.geom_rbound[g]
+#       margin = m.geom_margin[g]
 
-      min_val = pos - rbound - margin
-      max_val = pos + rbound + margin
+#       min_val = pos - rbound - margin
+#       max_val = pos + rbound + margin
 
-      aamm_min[j] = wp.min(aamm_min[j], min_val)
-      aamm_max[j] = wp.max(aamm_max[j], max_val)
+#       aamm_min[j] = wp.min(aamm_min[j], min_val)
+#       aamm_max[j] = wp.max(aamm_max[j], max_val)
 
-  # Write results to output
-  d.dyn_body_aamm[env_id, bid, 0] = aamm_min
-  d.dyn_body_aamm[env_id, bid, 1] = aamm_max
+#   # Write results to output
+#   d.dyn_body_aamm[env_id, bid, 0] = aamm_min
+#   d.dyn_body_aamm[env_id, bid, 1] = aamm_max
 
 @wp.kernel
 def get_dyn_geom_aabb(
@@ -268,6 +268,7 @@ def find_indices(
 def broadphase_sweep_and_prune_kernel(
   m: Model,
   d: Data,
+  num_threads : int
 ):
   threadId = wp.tid()  # Get thread ID
   if d.cumulative_sum.shape[0] > 0:
@@ -546,7 +547,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=broadphase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
-    inputs=[m, d],
+    inputs=[m, d, num_sweep_threads],
   )
   wp.synchronize()
 
