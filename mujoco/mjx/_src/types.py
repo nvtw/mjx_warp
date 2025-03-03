@@ -232,6 +232,10 @@ class Model:
   body_inertia: wp.array(dtype=wp.vec3, ndim=1)
   body_mass: wp.array(dtype=wp.float32, ndim=1)
   body_invweight0: wp.array(dtype=wp.float32, ndim=2)
+  body_geomnum: wp.array(dtype=wp.int32, ndim=1)
+  body_geomadr: wp.array(dtype=wp.int32, ndim=1)
+  body_contype: wp.array(dtype=wp.int32, ndim=1)
+  body_conaffinity: wp.array(dtype=wp.int32, ndim=1)
   jnt_bodyid: wp.array(dtype=wp.int32, ndim=1)
   jnt_limited: wp.array(dtype=wp.int32, ndim=1)
   jnt_limited_slide_hinge_adr: wp.array(dtype=wp.int32, ndim=1)  # warp only
@@ -258,6 +262,8 @@ class Model:
   geom_friction: wp.array(dtype=wp.float32, ndim=2)
   geom_margin: wp.array(dtype=wp.float32, ndim=1)
   geom_gap: wp.array(dtype=wp.float32, ndim=1)
+  geom_rbound: wp.array(dtype=wp.float32, ndim=2)
+  geom_aabb: wp.array(dtype=wp.vec3, ndim=2)
   site_pos: wp.array(dtype=wp.vec3, ndim=1)
   site_quat: wp.array(dtype=wp.quat, ndim=1)
   site_bodyid: wp.array(dtype=wp.int32, ndim=1)
@@ -284,16 +290,6 @@ class Model:
   actuator_actadr: wp.array(dtype=wp.int32, ndim=1)
   actuator_dyntype: wp.array(dtype=wp.int32, ndim=1)
   actuator_dynprm: wp.array(dtype=vec10f, ndim=1)
-
-  body_geomnum: wp.array(dtype=wp.int32, ndim=1)
-  body_geomadr: wp.array(dtype=wp.int32, ndim=1)
-  geom_rbound: wp.array(dtype=wp.float32, ndim=2)
-  geom_aabb: wp.array(dtype=wp.vec3, ndim=2)
-
-  body_parentid: wp.array(dtype=wp.int32, ndim=1)
-  body_weldid: wp.array(dtype=wp.int32, ndim=1)
-  body_contype: wp.array(dtype=wp.int32, ndim=1)
-  body_conaffinity: wp.array(dtype=wp.int32, ndim=1)
   exclude_signature: wp.array(dtype=wp.int32, ndim=1)
 
 
