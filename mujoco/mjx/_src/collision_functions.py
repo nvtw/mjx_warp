@@ -19,7 +19,7 @@ from .types import Model
 from .types import Data
 from .types import Contact
 from .types import GeomType
-from .support import where
+from .types import NUM_GEOM_TYPES
 
 
 @wp.kernel
@@ -157,3 +157,53 @@ def convex_convex(m: Model, d: Data, group_key: int):
 
 def convex_convex(m: Model, d: Data, group_key: int):
   pass
+
+
+@wp.func
+def group_key(type1: wp.int32, type2: wp.int32) -> wp.int32:
+  return type1 + type2 * NUM_GEOM_TYPES
+
+
+# same order as in MJX - collision function and group key.
+_COLLISION_FUNCS = [
+  (plane_sphere, group_key(GeomType.PLANE.value, GeomType.SPHERE.value)),
+  (plane_capsule, group_key(GeomType.PLANE.value, GeomType.CAPSULE.value)),
+  (plane_convex, group_key(GeomType.PLANE.value, GeomType.BOX.value)),
+  (plane_ellipsoid, group_key(GeomType.PLANE.value, GeomType.ELLIPSOID.value)),
+  (plane_cylinder, group_key(GeomType.PLANE.value, GeomType.CYLINDER.value)),
+  (plane_convex, group_key(GeomType.PLANE.value, GeomType.MESH.value)),
+  (hfield_sphere, group_key(GeomType.HFIELD.value, GeomType.SPHERE.value)),
+  (hfield_capsule, group_key(GeomType.HFIELD.value, GeomType.CAPSULE.value)),
+  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.BOX.value)),
+  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.MESH.value)),
+  (sphere_sphere, group_key(GeomType.SPHERE.value, GeomType.SPHERE.value)),
+  (sphere_capsule, group_key(GeomType.SPHERE.value, GeomType.CAPSULE.value)),
+  (sphere_cylinder, group_key(GeomType.SPHERE.value, GeomType.CYLINDER.value)),
+  (sphere_ellipsoid, group_key(GeomType.SPHERE.value, GeomType.ELLIPSOID.value)),
+  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.BOX.value)),
+  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.MESH.value)),
+  (capsule_capsule, group_key(GeomType.CAPSULE.value, GeomType.CAPSULE.value)),
+  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.BOX.value)),
+  (capsule_ellipsoid, group_key(GeomType.CAPSULE.value, GeomType.ELLIPSOID.value)),
+  (capsule_cylinder, group_key(GeomType.CAPSULE.value, GeomType.CYLINDER.value)),
+  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.MESH.value)),
+  (ellipsoid_ellipsoid, group_key(GeomType.ELLIPSOID.value, GeomType.ELLIPSOID.value)),
+  (ellipsoid_cylinder, group_key(GeomType.ELLIPSOID.value, GeomType.CYLINDER.value)),
+  (cylinder_cylinder, group_key(GeomType.CYLINDER.value, GeomType.CYLINDER.value)),
+  (box_box, group_key(GeomType.BOX.value, GeomType.BOX.value)),
+  (convex_convex, group_key(GeomType.BOX.value, GeomType.MESH.value)),
+  (convex_convex, group_key(GeomType.MESH.value, GeomType.MESH.value)),
+]
+
+
+def narrowphase(m: Model, d: Data):
+  # we need to figure out how to keep the overhead of this small - not launching anything
+  # for pair types without collisions, as well as updating the launch dimensions.
+
+  # we run the collision functions in increasing condim order to get the grouping
+  # right from the get-go.
+
+  for i in range(len(_COLLISION_FUNCS)):
+    # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
+    func, group_key = _COLLISION_FUNCS[i]
+    func(m, d, group_key)

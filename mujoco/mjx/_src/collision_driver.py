@@ -26,67 +26,10 @@ from .types import array2df
 from .types import array3df
 from .types import NUM_GEOM_TYPES
 from .types import vec5
-from .collision_functions import plane_sphere
-from .collision_functions import plane_capsule
-from .collision_functions import plane_ellipsoid
-from .collision_functions import plane_cylinder
-from .collision_functions import plane_convex
-from .collision_functions import hfield_sphere
-from .collision_functions import hfield_capsule
-from .collision_functions import hfield_convex
-from .collision_functions import sphere_sphere
-from .collision_functions import sphere_capsule
-from .collision_functions import sphere_cylinder
-from .collision_functions import sphere_ellipsoid
-from .collision_functions import sphere_convex
-from .collision_functions import capsule_capsule
-from .collision_functions import capsule_convex
-from .collision_functions import capsule_ellipsoid
-from .collision_functions import capsule_cylinder
-from .collision_functions import capsule_convex
-from .collision_functions import ellipsoid_ellipsoid
-from .collision_functions import ellipsoid_cylinder
-from .collision_functions import cylinder_cylinder
-from .collision_functions import box_box
-from .collision_functions import convex_convex
+from .collision_functions import _COLLISION_FUNCS
 from .support import where
+from .support import group_key
 
-
-@wp.func
-def group_key(type1: wp.int32, type2: wp.int32) -> wp.int32:
-  return type1 + type2 * NUM_GEOM_TYPES
-
-
-# same order as in MJX - collision function and group key.
-_COLLISION_FUNCS = [
-  (plane_sphere, group_key(GeomType.PLANE.value, GeomType.SPHERE.value)),
-  (plane_capsule, group_key(GeomType.PLANE.value, GeomType.CAPSULE.value)),
-  (plane_convex, group_key(GeomType.PLANE.value, GeomType.BOX.value)),
-  (plane_ellipsoid, group_key(GeomType.PLANE.value, GeomType.ELLIPSOID.value)),
-  (plane_cylinder, group_key(GeomType.PLANE.value, GeomType.CYLINDER.value)),
-  (plane_convex, group_key(GeomType.PLANE.value, GeomType.MESH.value)),
-  (hfield_sphere, group_key(GeomType.HFIELD.value, GeomType.SPHERE.value)),
-  (hfield_capsule, group_key(GeomType.HFIELD.value, GeomType.CAPSULE.value)),
-  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.BOX.value)),
-  (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.MESH.value)),
-  (sphere_sphere, group_key(GeomType.SPHERE.value, GeomType.SPHERE.value)),
-  (sphere_capsule, group_key(GeomType.SPHERE.value, GeomType.CAPSULE.value)),
-  (sphere_cylinder, group_key(GeomType.SPHERE.value, GeomType.CYLINDER.value)),
-  (sphere_ellipsoid, group_key(GeomType.SPHERE.value, GeomType.ELLIPSOID.value)),
-  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.BOX.value)),
-  (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.MESH.value)),
-  (capsule_capsule, group_key(GeomType.CAPSULE.value, GeomType.CAPSULE.value)),
-  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.BOX.value)),
-  (capsule_ellipsoid, group_key(GeomType.CAPSULE.value, GeomType.ELLIPSOID.value)),
-  (capsule_cylinder, group_key(GeomType.CAPSULE.value, GeomType.CYLINDER.value)),
-  (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.MESH.value)),
-  (ellipsoid_ellipsoid, group_key(GeomType.ELLIPSOID.value, GeomType.ELLIPSOID.value)),
-  (ellipsoid_cylinder, group_key(GeomType.ELLIPSOID.value, GeomType.CYLINDER.value)),
-  (cylinder_cylinder, group_key(GeomType.CYLINDER.value, GeomType.CYLINDER.value)),
-  (box_box, group_key(GeomType.BOX.value, GeomType.BOX.value)),
-  (convex_convex, group_key(GeomType.BOX.value, GeomType.MESH.value)),
-  (convex_convex, group_key(GeomType.MESH.value, GeomType.MESH.value)),
-]
 
 #####################################################################################
 # BROADPHASE
@@ -161,7 +104,7 @@ def get_dyn_body_aamm(
 
 
 @wp.kernel
-def init_kernel(
+def init_contact_kernel(
   contact: Contact,
 ):
   contact_id = wp.tid()
@@ -202,7 +145,7 @@ def overlap(
 
 
 @wp.kernel
-def broad_phase_project_boxes_onto_sweep_direction_kernel(
+def broadphase_project_boxes_onto_sweep_direction_kernel(
   boxes: wp.array(dtype=wp.vec3, ndim=3),
   data_start: wp.array(dtype=wp.float32, ndim=2),
   data_end: wp.array(dtype=wp.float32, ndim=2),
@@ -274,7 +217,7 @@ def find_first_greater_than(
 
 
 @wp.kernel
-def broad_phase_sweep_and_prune_prepare_kernel(
+def broadphase_sweep_and_prune_prepare_kernel(
   num_boxes_per_world: int,
   data_start: wp.array(dtype=wp.float32, ndim=2),
   data_end: wp.array(dtype=wp.float32, ndim=2),
@@ -329,7 +272,7 @@ def find_indices(
 
 
 @wp.kernel
-def broad_phase_sweep_and_prune_kernel(
+def broadphase_sweep_and_prune_kernel(
   num_threads: int,
   length: int,
   num_boxes_per_world: int,
@@ -478,7 +421,7 @@ def get_contact_solver_params_kernel(
   # for i in range(mjNIMP):
   #     solimp_[i] = mix * geom_solimp[i + g1 * mjNIMP] + (1 - mix) * geom_solimp[i + g2 * mjNIMP]
 
-  friction_ = wp.vec3(0.0, 0.0, 0.0)  # wp.zeros(3, dtype=float)
+  friction_ = wp.vec3(0.0, 0.0, 0.0)
   for i in range(3):
     friction_[i] = wp.max(geom_friction[g1, i], geom_friction[g2, i])
 
@@ -516,15 +459,15 @@ def group_contacts_by_type_kernel(
 
   type1 = geom_type[geom1]
   type2 = geom_type[geom2]
-  group_key = group_key(type1, type2)
+  key = group_key(type1, type2)
 
-  n_type_pair = wp.atomic_add(type_pair_count, group_key, 1)
-  type_pair_env_id[group_key, n_type_pair] = worldid
-  type_pair_geom_id[group_key, n_type_pair] = wp.vec2i(geom1, geom2)
+  n_type_pair = wp.atomic_add(type_pair_count, key, 1)
+  type_pair_env_id[key, n_type_pair] = worldid
+  type_pair_geom_id[key, n_type_pair] = wp.vec2i(geom1, geom2)
 
 
-def broad_phase(m: Model, d: Data):
-  """Broad phase collision detection."""
+def broadphase_sweep_and_prune(m: Model, d: Data):
+  """Broad-phase collision detection via sweep-and-prune."""
 
   # Directional vectors for sweep
   # TODO: Improve picking of direction
@@ -533,7 +476,7 @@ def broad_phase(m: Model, d: Data):
   abs_dir = wp.vec3(abs(direction.x), abs(direction.y), abs(direction.z))
 
   wp.launch(
-    kernel=broad_phase_project_boxes_onto_sweep_direction_kernel,
+    kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[
       d.dyn_body_aamm,
@@ -610,7 +553,7 @@ def broad_phase(m: Model, d: Data):
   )
 
   wp.launch(
-    kernel=broad_phase_sweep_and_prune_prepare_kernel,
+    kernel=broadphase_sweep_and_prune_prepare_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[
       m.ngeom,
@@ -627,7 +570,7 @@ def broad_phase(m: Model, d: Data):
   # Estimate how many overlap checks need to be done - assumes each box has to be compared to 5 other boxes (and batched over all worlds)
   num_sweep_threads = 5 * d.nworld * m.ngeom
   wp.launch(
-    kernel=broad_phase_sweep_and_prune_kernel,
+    kernel=broadphase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
     inputs=[
       num_sweep_threads,
@@ -654,10 +597,10 @@ def broad_phase(m: Model, d: Data):
 ###########################################################################################3
 
 
-def init(m: Model, d: Data):
+def init_contact(m: Model, d: Data):
   # initialize output data
   wp.launch(
-    kernel=init_kernel,
+    kernel=init_contact_kernel,
     dim=(d.nconmax),
     inputs=[d.contact],
   )
@@ -681,11 +624,13 @@ def broadphase(m: Model, d: Data):
       m.geom_margin,
       d.geom_xpos,
       m.geom_rbound,
+    ],
+    outputs=[
       d.dyn_body_aamm,
     ],
   )
 
-  broad_phase(m, d)
+  broadphase_sweep_and_prune(m, d)
 
 
 def group_contacts_by_type(m: Model, d: Data):
@@ -711,19 +656,6 @@ def group_contacts_by_type(m: Model, d: Data):
 
   # Initialize the env contact counter
   d.contact_counter.zero_()
-
-
-def narrowphase(m: Model, d: Data):
-  # we need to figure out how to keep the overhead of this small - not launching anything
-  # for pair types without collisions, as well as updating the launch dimensions.
-
-  # we run the collision functions in increasing condim order to get the grouping
-  # right from the get-go.
-
-  for i in range(len(_COLLISION_FUNCS)):
-    # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
-    func, group_key = _COLLISION_FUNCS[i]
-    func(m, d, group_key)
 
 
 def get_contact_solver_params(m: Model, d: Data):
@@ -760,9 +692,14 @@ def collision(m: Model, d: Data):
   # which is further based on the CUDA code here:
   # https://github.com/btaba/mujoco/blob/warp-collisions/mjx/mujoco/mjx/_src/cuda/engine_collision_driver.cu.cc#L458-L583
 
-  init(m, d)
+  init_contact(m, d)
   broadphase(m, d)
   # filtering?
   group_contacts_by_type(m, d)
+  # XXX switch between collision functions and GJK/EPA here
+  if True:
+    from .collision_functions import narrowphase
+  else:
+    from .collision_convex import narrowphase
   narrowphase(m, d)
   get_contact_solver_params(m, d)
