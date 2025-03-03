@@ -93,7 +93,6 @@ def get_dyn_geom_aabb(
     corner_world = (
       ori * (corner + aabb_pos) + pos
     )
-    wp.printf("%f %f %f\n", corner_world.x, corner_world.y, corner_world.z)
     aabb_max = wp.max(aabb_max, corner_world)
     aabb_min = wp.min(aabb_min, corner_world)
 
