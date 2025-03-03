@@ -30,42 +30,6 @@ from .collision_functions import _COLLISION_FUNCS
 from .support import where
 from .support import group_key
 
-
-#####################################################################################
-# BROADPHASE
-#####################################################################################
-
-# # use this kernel to get the AAMM for each body
-# @wp.kernel
-# def get_dyn_body_aamm(
-#   m: Model,
-#   d: Data,
-# ):
-#   env_id, bid = wp.tid()
-
-#   # Initialize AAMM with extreme values
-#   aamm_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
-#   aamm_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
-
-#   # Iterate over all geometries associated with the body
-#   for i in range(m.body_geomnum[bid]):
-#     g = m.body_geomadr[bid] + i
-
-#     for j in range(3):
-#       pos = d.geom_xpos[env_id, g][j]
-#       rbound = m.geom_rbound[g]
-#       margin = m.geom_margin[g]
-
-#       min_val = pos - rbound - margin
-#       max_val = pos + rbound + margin
-
-#       aamm_min[j] = wp.min(aamm_min[j], min_val)
-#       aamm_max[j] = wp.max(aamm_max[j], max_val)
-
-#   # Write results to output
-#   d.dyn_body_aamm[env_id, bid, 0] = aamm_min
-#   d.dyn_body_aamm[env_id, bid, 1] = aamm_max
-
 @wp.kernel
 def get_dyn_geom_aabb(
   m: Model,
@@ -444,23 +408,18 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   # TODO: Improve picking of direction
   direction = wp.vec3(0.5935, 0.7790, 0.1235)
   direction = wp.normalize(direction)
-  abs_dir = wp.vec3(abs(direction.x), abs(direction.y), abs(direction.z))
 
-  print("broadphase_project_boxes_onto_sweep_direction")
   wp.launch(
     kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[m, d],
   )
-  wp.synchronize()
-  segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
 
+  segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
   if segmented_sort_available:
-    print("Using segmented sort")
     wp.utils.segmented_sort_pairs(
       d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
     )
-    wp.synchronize()
   else:
     # Sort each world's segment separately
     for world_id in range(d.nworld):
@@ -511,36 +470,28 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
         m.ngeom,
       )
 
-  print("reorder_bounding_boxes_kernel")
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[m, d],
   )
-  wp.synchronize()
 
-  print("broadphase_sweep_and_prune_prepare_kernel")
   wp.launch(
     kernel=broadphase_sweep_and_prune_prepare_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[m, d],
   )
-  wp.synchronize()
+
   # The scan (scan = cumulative sum, either inclusive or exclusive depending on the last argument) is used for load balancing among the threads
   wp.utils.array_scan(d.ranges.reshape(-1), d.cumulative_sum, True)
 
   # Estimate how many overlap checks need to be done - assumes each box has to be compared to 5 other boxes (and batched over all worlds)
   num_sweep_threads = 5 * d.nworld * m.ngeom
-  print("broadphase_sweep_and_prune_kernel")
   wp.launch(
     kernel=broadphase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
     inputs=[m, d, num_sweep_threads],
   )
-  wp.synchronize()
-
-  print(d.broadphase_pairs.numpy())
-  print(d.result_count.numpy())
 
 ###########################################################################################3
 
@@ -557,29 +508,12 @@ def init_contact(m: Model, d: Data):
 def broadphase(m: Model, d: Data):
   # broadphase collision detection
 
-  # generate body AAMMs
-  # generate body pairs
-  # get geom AABBs in global frame
-  # get geom pairs
-
-  # get geom AABBs in global frame
-  # wp.launch(
-  #   kernel=get_dyn_body_aamm,
-  #   dim=(d.nworld, m.nbody),
-  #   inputs=[m, d],
-  # )
-
-  print(m.geom_aabb.numpy())
-
-  print("get_dyn_geom_aabb")
+  # generate geom AABBs
   wp.launch(
     kernel=get_dyn_geom_aabb,
     dim=(d.nworld, m.ngeom),
     inputs=[m, d],
   )
-  wp.synchronize()
-
-  print(d.dyn_geom_aabb.numpy())
 
   broadphase_sweep_and_prune(m, d)
 
