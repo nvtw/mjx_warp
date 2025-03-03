@@ -160,10 +160,6 @@ def reorder_bounding_boxes_kernel(
   box_min = d.dyn_geom_aabb[worldId, mapped, 0]
   box_max = d.dyn_geom_aabb[worldId, mapped, 1]
 
-  # box = transform_aabb(
-  #   box, box_translations[worldId, mapped], box_rotations[worldId, mapped]
-  # )
-
   # Reorder the box into the sorted array
   d.boxes_sorted[worldId, i, 0] = box_min
   d.boxes_sorted[worldId, i, 1] = box_max
@@ -258,12 +254,15 @@ def broadphase_sweep_and_prune_kernel(
     i = i % m.ngeom
     j = j % m.ngeom
 
+    # geom index
     idx1 = d.data_indexer[worldId, i]
     idx2 = d.data_indexer[worldId, j]
 
+    # body index
     body1 = m.geom_bodyid[idx1]
     body2 = m.geom_bodyid[idx2]
 
+    # swap for consistent ordering downstream
     if body2 < body1:
       tmp = body1
       body1 = body2
@@ -306,6 +305,7 @@ def broadphase_sweep_and_prune_kernel(
       continue
 
     """
+    # somehow does not work yet.
     # exclude
     signature = (body1 << 16) + body2
     filtered = bool(False)
