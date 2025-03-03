@@ -19,7 +19,6 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import mujoco
 from mujoco import mjx
-import numpy as np
 import warp as wp
 
 from . import test_util

@@ -17,7 +17,6 @@ import warp as wp
 
 from .types import Model
 from .types import Data
-from .types import Contact
 from .types import GeomType
 from .types import NUM_GEOM_TYPES
 
@@ -87,10 +86,6 @@ def hfield_convex(m: Model, d: Data, group_key: int):
   pass
 
 
-def hfield_convex(m: Model, d: Data, group_key: int):
-  pass
-
-
 def sphere_sphere(m: Model, d: Data, group_key: int):
   pass
 
@@ -104,10 +99,6 @@ def sphere_cylinder(m: Model, d: Data, group_key: int):
 
 
 def sphere_ellipsoid(m: Model, d: Data, group_key: int):
-  pass
-
-
-def sphere_convex(m: Model, d: Data, group_key: int):
   pass
 
 
@@ -131,10 +122,6 @@ def capsule_cylinder(m: Model, d: Data, group_key: int):
   pass
 
 
-def capsule_convex(m: Model, d: Data, group_key: int):
-  pass
-
-
 def ellipsoid_ellipsoid(m: Model, d: Data, group_key: int):
   pass
 
@@ -148,10 +135,6 @@ def cylinder_cylinder(m: Model, d: Data, group_key: int):
 
 
 def box_box(m: Model, d: Data, group_key: int):
-  pass
-
-
-def convex_convex(m: Model, d: Data, group_key: int):
   pass
 
 
