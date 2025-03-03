@@ -18,15 +18,10 @@ import warp as wp
 from .types import Model
 from .types import Data
 from .types import Contact
-from .types import GeomType
 from .types import MJ_MINVAL
 from .types import MJ_NREF
 from .types import MJ_NIMP
-from .types import array2df
-from .types import array3df
-from .types import NUM_GEOM_TYPES
 from .types import vec5
-from .collision_functions import _COLLISION_FUNCS
 from .support import where
 from .support import group_key
 
@@ -138,7 +133,6 @@ def broadphase_project_boxes_onto_sweep_direction_kernel(
 
 @wp.kernel
 def reorder_bounding_boxes_kernel(
-  m: Model,
   d: Data,
 ):
   worldId, i = wp.tid()
@@ -307,10 +301,7 @@ def broadphase_sweep_and_prune_kernel(
       continue
 
     # Check if the boxes overlap
-    if body1 != body2 and overlap(worldId, i, j, d.boxes_sorted):
-      # if not (body_has_plane[body1] or body_has_plane[body2]):
-      #  return
-
+    if overlap(worldId, i, j, d.boxes_sorted):
       pair = wp.vec2i(body1, body2)
 
       id = wp.atomic_add(d.result_count, worldId, 1)
@@ -404,11 +395,6 @@ def group_contacts_by_type_kernel(
 def broadphase_sweep_and_prune(m: Model, d: Data):
   """Broad-phase collision detection via sweep-and-prune."""
 
-  # Directional vectors for sweep
-  # TODO: Improve picking of direction
-  direction = wp.vec3(0.5935, 0.7790, 0.1235)
-  direction = wp.normalize(direction)
-
   wp.launch(
     kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
@@ -473,7 +459,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[m, d],
+    inputs=[d],
   )
 
   wp.launch(
@@ -559,5 +545,9 @@ def collision(m: Model, d: Data):
     from .collision_functions import narrowphase
   else:
     from .collision_convex import narrowphase
+
+  # TODO(team): should we limit per-world contact nubmers?
+  # TODO(team): we should reject far-away contacts in the narrowphase instead of constraint
+  #             partitioning because we can move some pressure of the atomics
   narrowphase(m, d)
   get_contact_solver_params(m, d)
