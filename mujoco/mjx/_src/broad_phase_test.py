@@ -178,119 +178,6 @@ class BroadPhaseTest(parameterized.TestCase):
 
     return
 
-
-
-    # Create some test boxes
-    num_worlds = d.nworld
-    num_boxes_per_world = m.ngeom
-    print(f"num_worlds: {num_worlds}, num_boxes_per_world: {num_boxes_per_world}")
-
-    # Parameters for random box generation
-    sample_space_origin = wp.vec3(-10.0, -10.0, -10.0)  # Origin of the bounding volume
-    sample_space_size = wp.vec3(20.0, 20.0, 20.0)  # Size of the bounding volume
-    min_edge_length = 0.5  # Minimum edge length of random boxes
-    max_edge_length = 5.0  # Maximum edge length of random boxes
-
-    boxes_list = []
-
-    # Set random seed for reproducibility
-    import random
-
-    random.seed(11)
-
-    # Generate random boxes for each world
-    for _ in range(num_boxes_per_world):
-      # Generate random position within bounding volume
-      pos_x = sample_space_origin.x + random.random() * sample_space_size.x
-      pos_y = sample_space_origin.y + random.random() * sample_space_size.y
-      pos_z = sample_space_origin.z + random.random() * sample_space_size.z
-
-      # Generate random box dimensions between min and max edge lengths
-      size_x = min_edge_length + random.random() * (max_edge_length - min_edge_length)
-      size_y = min_edge_length + random.random() * (max_edge_length - min_edge_length)
-      size_z = min_edge_length + random.random() * (max_edge_length - min_edge_length)
-
-      # Create box with random position and size
-      box_min, box_max = init_box(pos_x, pos_y, pos_z, pos_x + size_x, pos_y + size_y, pos_z + size_z)
-      boxes_list.append([box_min, box_max])
-
-    # Generate random positions and orientations for each box
-    pos = []
-    rot = []
-    for _ in range(num_worlds * num_boxes_per_world):
-      # Random position within bounding volume
-      pos_x = sample_space_origin.x + random.random() * sample_space_size.x
-      pos_y = sample_space_origin.y + random.random() * sample_space_size.y
-      pos_z = sample_space_origin.z + random.random() * sample_space_size.z
-      pos.append(wp.vec3(pos_x, pos_y, pos_z))
-      # pos.append(wp.vec3(0, 0, 0))
-
-      # Random rotation matrix
-      rx = random.random() * 6.28318530718  # 2*pi
-      ry = random.random() * 6.28318530718
-      rz = random.random() * 6.28318530718
-      axis = wp.vec3(rx, ry, rz)
-      axis = axis / wp.length(axis)  # normalize axis
-      angle = random.random() * 6.28318530718  # random angle between 0 and 2*pi
-      rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(axis, angle)))
-      # rot.append(wp.quat_to_matrix(wp.quat_from_axis_angle(wp.vec3(1, 0, 0), float(0))))
-
-    # Convert pos and rot to MultiIndexList format
-    pos_multi = MultiIndexList()
-    rot_multi = MultiIndexList()
-
-    # Populate the MultiIndexLists using pos and rot data
-    idx = 0
-    for world_idx in range(num_worlds):
-      for i in range(num_boxes_per_world):
-        pos_multi[world_idx, i] = pos[idx]
-        rot_multi[world_idx, i] = rot[idx]
-        idx += 1
-
-    brute_force_overlaps = find_overlaps_brute_force_batched(
-      num_worlds, num_boxes_per_world, boxes_list, pos_multi, rot_multi
-    )
-
-    # Test the broad phase by setting custom aabb data
-    d.dyn_geom_aabb = wp.array(
-      boxes_list, dtype=wp.vec3, ndim=2
-    )
-    d.dyn_geom_aabb = d.dyn_geom_aabb.reshape((num_worlds, num_boxes_per_world, 2))
-    d.geom_xpos = wp.array(pos, dtype=wp.vec3)
-    d.geom_xpos = d.geom_xpos.reshape((num_worlds, num_boxes_per_world))
-    d.geom_xmat = wp.array(rot, dtype=wp.mat33)
-    d.geom_xmat = d.geom_xmat.reshape((num_worlds, num_boxes_per_world))
-
-    print("mjx.broadphase")
-    mjx.broadphase(m, d)
-
-    result = d.broadphase_pairs
-    result_count = d.result_count
-
-    # Get numpy arrays from result and result_count
-    result_np = result.numpy()
-    result_count_np = result_count.numpy()
-
-    # Iterate over each world
-    for world_idx in range(num_worlds):
-      # Get number of collisions for this world
-      num_collisions = result_count_np[world_idx]
-      print(f"Number of collisions for world {world_idx}: {num_collisions}")
-
-      list = brute_force_overlaps[world_idx]
-      assert len(list) == num_collisions, "Number of collisions does not match"
-
-      # Print each collision pair
-      for i in range(num_collisions):
-        pair = result_np[world_idx][i]
-
-        # Convert pair to tuple for comparison
-        pair_tuple = (int(pair[0]), int(pair[1]))
-        assert pair_tuple in list, (
-          f"Collision pair {pair_tuple} not found in brute force results"
-        )
-
-
   def test_broadphase_simple(self):
     """Tests the broadphase"""
 
@@ -301,11 +188,11 @@ class BroadPhaseTest(parameterized.TestCase):
         <geom size="40 40 40" type="plane"/>   <!- (0) intersects with nothing -->
         <body pos="0 0 0.7">
           <freejoint/>
-          <geom size="0.5 0.5 0.5" type="box"/> <!- (1) intersects with 2 -->
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (1) intersects with 2, 6, 7 -->
         </body>
         <body pos="0.1 0 0.7">
           <freejoint/>
-          <geom size="0.5 0.5 0.5" type="box"/> <!- (2) intersects with 1 -->
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (2) intersects with 1, 6, 7 -->
         </body>
 
         <body pos="1.8 0 0.7">
@@ -320,11 +207,11 @@ class BroadPhaseTest(parameterized.TestCase):
         <body pos="0 0 1.8">
           <freejoint/>
           <geom size="0.5 0.5 0.5" type="box"/> <!- (5) intersects with 7 -->
-          <geom size="0.5 0.5 0.5" type="box" pos="0 0 -1"/> <!- (6) intersects with 7, 2, 1 -->
+          <geom size="0.5 0.5 0.5" type="box" pos="0 0 -1"/> <!- (6) intersects with 2, 1, 7 -->
         </body>
         <body pos="0 0.5 1.2">
           <freejoint/>
-          <geom size="0.5 0.5 0.5" type="box"/> <!- (7) intersects with 5 -->
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (7) intersects with 5, 6 -->
         </body>
         
       </worldbody>
@@ -340,7 +227,7 @@ class BroadPhaseTest(parameterized.TestCase):
 
     mjx.broadphase(mx, dx)
 
-    assert(dx.result_count.numpy()[0] == 9)
+    assert(dx.result_count.numpy()[0] == 8)
 
 
 if __name__ == "__main__":

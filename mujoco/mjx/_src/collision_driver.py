@@ -22,6 +22,7 @@ from .types import MJ_MINVAL
 from .types import MJ_NREF
 from .types import MJ_NIMP
 from .types import vec5
+from .types import DisableBit
 from .support import where
 from .support import group_key
 
@@ -239,7 +240,8 @@ def find_indices(
 def broadphase_sweep_and_prune_kernel(
   m: Model,
   d: Data,
-  num_threads : int
+  num_threads: int,
+  filter_parent: bool
 ):
   threadId = wp.tid()  # Get thread ID
   if d.cumulative_sum.shape[0] > 0:
@@ -260,18 +262,20 @@ def broadphase_sweep_and_prune_kernel(
     idx1 = d.data_indexer[worldId, i]
     idx2 = d.data_indexer[worldId, j]
 
-    body1 = m.geom_bodyid[i]
-    body2 = m.geom_bodyid[j]
+    body1 = m.geom_bodyid[idx1]
+    body2 = m.geom_bodyid[idx2]
 
-    body1 = wp.min(idx1, idx2)
-    body2 = wp.max(idx1, idx2)
+    if body2 < body1:
+      tmp = body1
+      body1 = body2
+      body2 = tmp
 
     # Collision filtering start
     # self collisions
     if body1 == body2:
       threadId += num_threads
       continue
-
+    
     # contype/affinity filtering
     contype1 = m.body_contype[body1]
     contype2 = m.body_contype[body2]
@@ -282,15 +286,14 @@ def broadphase_sweep_and_prune_kernel(
     if not compatible:
       threadId += num_threads
       continue
-
+    
     # parent-child
-    filter_parent = wp.static(m.opt.disableflags & types.DisableBit.FILTER_PARENT.value)
-    w1_p = m.body_weldid[m.body_parentid[body1]]
-    w2_p = m.body_weldid[m.body_parentid[body2]]
-    if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
+    body1_p = m.body_weldid[m.body_parentid[body1]]
+    body2_p = m.body_weldid[m.body_parentid[body2]]
+    if filter_parent and body1 != 0 and body2 != 0 and (body1 == body2_p or body2 == body1_p):
       threadId += num_threads
       continue
-
+    
     # welded bodies
     w1 = m.body_weldid[body1]
     w2 = m.body_weldid[body2]
@@ -298,9 +301,11 @@ def broadphase_sweep_and_prune_kernel(
       threadId += num_threads
       continue
 
+    """
     # exclude
     signature = (body1 << 16) + body2
     filtered = bool(False)
+    # TODO(AD): this can become very expensive
     for i in range(m.nexclude):
       if m.exclude_signature[i] == signature:
         filtered = True
@@ -309,7 +314,7 @@ def broadphase_sweep_and_prune_kernel(
     if filtered:
       threadId += num_threads
       continue
-
+    """
     # Check if the boxes overlap
     if overlap(worldId, i, j, d.boxes_sorted):
       pair = wp.vec2i(body1, body2)
@@ -479,10 +484,11 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
 
   # Estimate how many overlap checks need to be done - assumes each box has to be compared to 5 other boxes (and batched over all worlds)
   num_sweep_threads = 5 * d.nworld * m.ngeom
+  filter_parent = not m.opt.disableflags & DisableBit.FILTERPARENT.value
   wp.launch(
     kernel=broadphase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
-    inputs=[m, d, num_sweep_threads],
+    inputs=[m, d, num_sweep_threads, filter_parent],
   )
 
 ###########################################################################################3
