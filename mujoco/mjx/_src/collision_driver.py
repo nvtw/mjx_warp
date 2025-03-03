@@ -359,50 +359,38 @@ def broadphase_sweep_and_prune_kernel(
 
 @wp.kernel
 def get_contact_solver_params_kernel(
-  geom: wp.array(dtype=wp.vec2i),
-  geom_priority: wp.array(dtype=wp.int32),
-  geom_solmix: wp.array(dtype=wp.float32),
-  geom_friction: array2df,
-  geom_solref: array2df,
-  geom_solimp: array2df,
-  geom_margin: wp.array(dtype=wp.float32),
-  geom_gap: wp.array(dtype=wp.float32),
-  ncon: wp.array(dtype=wp.int32),
-  # outputs
-  includemargin: wp.array(dtype=wp.float32),
-  friction: wp.array(dtype=vec5),
-  solref: wp.array(dtype=wp.vec2f),
-  solreffriction: wp.array(dtype=wp.vec2f),
-  solimp: wp.array(dtype=vec5),
+  m: Model,
+  d: Data,
 ):
   tid = wp.tid()
 
-  n_contact_pts = ncon[0]
+  n_contact_pts = d.ncon[0]
   if tid >= n_contact_pts:
     return
 
-  g1 = geom[tid].x
-  g2 = geom[tid].y
+  geoms = d.contact.geom[tid]
+  g1 = geoms.x
+  g2 = geoms.y
 
-  margin = wp.max(geom_margin[g1], geom_margin[g2])
-  gap = wp.max(geom_gap[g1], geom_gap[g2])
-  solmix1 = geom_solmix[g1]
-  solmix2 = geom_solmix[g2]
+  margin = wp.max(m.geom_margin[g1], m.geom_margin[g2])
+  gap = wp.max(m.geom_gap[g1], m.geom_gap[g2])
+  solmix1 = m.geom_solmix[g1]
+  solmix2 = m.geom_solmix[g2]
   mix = solmix1 / (solmix1 + solmix2)
   mix = where((solmix1 < MJ_MINVAL) and (solmix2 < MJ_MINVAL), 0.5, mix)
   mix = where((solmix1 < MJ_MINVAL) and (solmix2 >= MJ_MINVAL), 0.0, mix)
   mix = where((solmix1 >= MJ_MINVAL) and (solmix2 < MJ_MINVAL), 1.0, mix)
 
-  p1 = geom_priority[g1]
-  p2 = geom_priority[g2]
+  p1 = m.geom_priority[g1]
+  p2 = m.geom_priority[g2]
   mix = where(p1 == p2, mix, where(p1 > p2, 1.0, 0.0))
-  is_standard = (geom_solref[g1, 0] > 0) and (geom_solref[g2, 0] > 0)
+  is_standard = (m.geom_solref[g1, 0] > 0) and (m.geom_solref[g2, 0] > 0)
 
   solref_ = wp.vec(0.0, length=MJ_NREF, dtype=wp.float32)
   for i in range(MJ_NREF):
-    solref_[i] = mix * geom_solref[g1, i] + (1.0 - mix) * geom_solref[g2, i]
+    solref_[i] = mix * m.geom_solref[g1, i] + (1.0 - mix) * m.geom_solref[g2, i]
     solref_[i] = where(
-      is_standard, solref_[i], wp.min(geom_solref[g1, i], geom_solref[g2, i])
+      is_standard, solref_[i], wp.min(m.geom_solref[g1, i], m.geom_solref[g2, i])
     )
 
   # solimp_ = wp.zeros(mjNIMP, dtype=float)
@@ -411,19 +399,19 @@ def get_contact_solver_params_kernel(
 
   friction_ = wp.vec3(0.0, 0.0, 0.0)
   for i in range(3):
-    friction_[i] = wp.max(geom_friction[g1, i], geom_friction[g2, i])
+    friction_[i] = wp.max(m.geom_friction[g1, i], m.geom_friction[g2, i])
 
   friction5 = vec5(friction_[0], friction_[0], friction_[1], friction_[2], friction_[2])
 
-  includemargin[tid] = margin - gap
-  friction[tid] = friction5
+  d.contact.includemargin[tid] = margin - gap
+  d.contact.friction[tid] = friction5
 
   for i in range(2):
-    solref[tid][i] = solref_[i]
+    d.contact.solref[tid][i] = solref_[i]
 
   for i in range(MJ_NIMP):
-    solimp[tid][i] = (
-      mix * geom_solimp[g1, i] + (1.0 - mix) * geom_solimp[g2, i]
+    d.contact.solimp[tid][i] = (
+      mix * m.geom_solimp[g1, i] + (1.0 - mix) * m.geom_solimp[g2, i]
     )  # solimp_[i]
 
 
@@ -470,7 +458,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   if segmented_sort_available:
     print("Using segmented sort")
     wp.utils.segmented_sort_pairs(
-      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices
+      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
     )
     wp.synchronize()
   else:
