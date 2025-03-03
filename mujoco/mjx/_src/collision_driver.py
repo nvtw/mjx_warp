@@ -25,6 +25,34 @@ from .types import vec5
 from .support import where
 from .support import group_key
 
+@wp.struct
+class AABB:
+  min: wp.vec3
+  max: wp.vec3
+
+
+@wp.func
+def transform_aabb(aabb_pos: wp.vec3, aabb_size: wp.vec3, pos: wp.vec3, ori: wp.mat33) -> AABB:
+  aabb = AABB()
+  aabb.max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
+  aabb.min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
+
+  for i in range(8):
+    corner = wp.vec3(aabb_size.x, aabb_size.y, aabb_size.z)
+    if i % 2 == 0:
+      corner.x = -corner.x
+    if (i // 2) % 2 == 0:
+      corner.y = -corner.y
+    if i < 4:
+      corner.z = -corner.z
+    corner_world = (
+      ori * (corner + aabb_pos) + pos
+    )
+    aabb.max = wp.max(aabb.max, corner_world)
+    aabb.min = wp.min(aabb.min, corner_world)
+    
+  return aabb
+
 @wp.kernel
 def get_dyn_geom_aabb(
   m: Model,
@@ -36,28 +64,13 @@ def get_dyn_geom_aabb(
   ori = d.geom_xmat[env_id, gid]
 
   aabb_pos = m.geom_aabb[gid, 0]
-  aabb = m.geom_aabb[gid, 1]
+  aabb_size = m.geom_aabb[gid, 1]
 
-  aabb_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
-  aabb_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
-
-  for i in range(8):
-    corner = wp.vec3(aabb.x, aabb.y, aabb.z)
-    if i % 2 == 0:
-      corner.x = -corner.x
-    if (i // 2) % 2 == 0:
-      corner.y = -corner.y
-    if i < 4:
-      corner.z = -corner.z
-    corner_world = (
-      ori * (corner + aabb_pos) + pos
-    )
-    aabb_max = wp.max(aabb_max, corner_world)
-    aabb_min = wp.min(aabb_min, corner_world)
+  aabb = transform_aabb(aabb_pos, aabb_size, pos, ori)
 
   # Write results to output
-  d.dyn_geom_aabb[env_id, gid, 0] = aabb_min
-  d.dyn_geom_aabb[env_id, gid, 1] = aabb_max
+  d.dyn_geom_aabb[env_id, gid, 0] = aabb.min
+  d.dyn_geom_aabb[env_id, gid, 1] = aabb.max
 
 
 @wp.kernel
@@ -404,7 +417,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
   if segmented_sort_available:
     wp.utils.segmented_sort_pairs(
-      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
+      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices
     )
   else:
     # Sort each world's segment separately

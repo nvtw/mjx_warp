@@ -27,22 +27,43 @@ from . import test_util
 BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
 
 
-# Helper function to initialize a box
-def init_box(min_x, min_y, min_z, max_x, max_y, max_z):
-  min_point = wp.vec3(min_x, min_y, min_z)
-  max_point = wp.vec3(max_x, max_y, max_z)
-  return min_point, max_point
+class AABB:
+  min: wp.vec3
+  max: wp.vec3
+
+
+def transform_aabb(aabb_pos, aabb_size, pos: wp.vec3, ori: wp.mat33) -> AABB:
+  
+  aabb = AABB()
+  aabb.max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
+  aabb.min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
+
+  for i in range(8):
+    corner = wp.vec3(aabb_size[0], aabb_size[1], aabb_size[2])
+    if i % 2 == 0:
+      corner.x = -corner.x
+    if (i // 2) % 2 == 0:
+      corner.y = -corner.y
+    if i < 4:
+      corner.z = -corner.z
+    corner_world = (
+      ori @ (corner + wp.vec3(aabb_pos[0], aabb_pos[1], aabb_pos[2])) + wp.vec3(pos[0], pos[1], pos[2])
+    )
+    aabb.max = wp.max(aabb.max, corner_world)
+    aabb.min = wp.min(aabb.min, corner_world)
+    
+  return aabb
 
 
 def overlap(
-  a: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
-  b: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
+  a: AABB,
+  b: AABB,
 ) -> bool:
   # Extract centers and sizes
-  a_min = a[0]
-  a_max = a[1]
-  b_min = b[0]
-  b_max = b[1]
+  a_min = a.min
+  a_max = a.max
+  b_min = b.min
+  b_max = b.max
 
   return not (
     a_min.x > b_max.x
@@ -63,14 +84,12 @@ def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos
   overlaps = []
 
   for i in range(num_boxes_per_world):
-    box_a = boxes[i]
-    
+    aabb_i = transform_aabb(boxes[i][0], boxes[i][1], pos[worldId][i], rot[worldId][i])
 
     for j in range(i + 1, num_boxes_per_world):
-      box_b = boxes[j]
-
-      # Use the overlap function to check for overlap
-      if overlap(box_a, box_b):
+      aabb_j = transform_aabb(boxes[j][0], boxes[j][1], pos[worldId][j], rot[worldId][j])
+      
+      if overlap(aabb_i, aabb_j):
         overlaps.append((i, j))  # Store indices of overlapping boxes
 
   return overlaps
@@ -91,12 +110,6 @@ def find_overlaps_brute_force_batched(
     overlaps.append(
       find_overlaps_brute_force(worldId, num_boxes_per_world, boxes, pos, rot)
     )
-
-  # Show progress bar for brute force computation
-  # from tqdm import tqdm
-
-  # for worldId in tqdm(range(num_worlds), desc="Computing overlaps"):
-  #    overlaps.append(find_overlaps_brute_force(worldId, num_boxes_per_world, boxes))
 
   return overlaps
 
@@ -123,7 +136,46 @@ class BroadPhaseTest(parameterized.TestCase):
     """Tests broad phase."""
     _, mjd, m, d = test_util.fixture("cube.xml")
 
+   
+    aabbs = m.geom_aabb.numpy()
+    pos = d.geom_xpos.numpy()
+    rot = d.geom_xmat.numpy()
+
+    aabbs = aabbs.reshape((m.ngeom, 2, 3))
+    pos = pos.reshape((d.nworld, m.ngeom, 3))
+    rot = rot.reshape((d.nworld, m.ngeom, 3, 3))
+
+    brute_force_overlaps = find_overlaps_brute_force_batched(d.nworld, m.ngeom, aabbs, pos, rot)
+
+
     mjx.broadphase(m, d)
+
+    result = d.broadphase_pairs
+    result_count = d.result_count
+
+    # Get numpy arrays from result and result_count
+    result_np = result.numpy()
+    result_count_np = result_count.numpy()
+
+    # Iterate over each world
+    for world_idx in range(d.nworld):
+      # Get number of collisions for this world
+      num_collisions = result_count_np[world_idx]
+      print(f"Number of collisions for world {world_idx}: {num_collisions}")
+
+      list = brute_force_overlaps[world_idx]
+      assert len(list) == num_collisions, "Number of collisions does not match"
+
+      # Print each collision pair
+      for i in range(num_collisions):
+        pair = result_np[world_idx][i]
+
+        # Convert pair to tuple for comparison
+        pair_tuple = (int(pair[0]), int(pair[1]))
+        assert pair_tuple in list, (
+          f"Collision pair {pair_tuple} not found in brute force results"
+        )
+
     return
 
 
