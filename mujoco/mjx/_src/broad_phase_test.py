@@ -29,9 +29,9 @@ BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
 
 # Helper function to initialize a box
 def init_box(min_x, min_y, min_z, max_x, max_y, max_z):
-  center = wp.vec3((min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2)
-  size = wp.vec3(max_x - min_x, max_y - min_y, max_z - min_z)
-  return center, size
+  min_point = wp.vec3(min_x, min_y, min_z)
+  max_point = wp.vec3(max_x, max_y, max_z)
+  return min_point, max_point
 
 
 def overlap(
@@ -39,16 +39,10 @@ def overlap(
   b: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
 ) -> bool:
   # Extract centers and sizes
-  a_center = a[0]
-  a_size = a[1]
-  b_center = b[0]
-  b_size = b[1]
-
-  # Calculate min/max from center and size
-  a_min = a_center - 0.5 * a_size
-  a_max = a_center + 0.5 * a_size
-  b_min = b_center - 0.5 * b_size
-  b_max = b_center + 0.5 * b_size
+  a_min = a[0]
+  a_max = a[1]
+  b_min = b[0]
+  b_max = b[1]
 
   return not (
     a_min.x > b_max.x
@@ -58,37 +52,6 @@ def overlap(
     or a_min.z > b_max.z
     or b_min.z > a_max.z
   )
-
-
-def transform_aabb(
-  aabb: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
-  pos: wp.vec3,
-  rot: wp.mat33,
-) -> wp.types.matrix(shape=(2, 3), dtype=wp.float32):
-  # Extract center and half-extents from AABB
-  center = aabb[0]
-  half_extents = aabb[1] * 0.5
-
-  # Get absolute values of rotation matrix columns
-  right = wp.vec3(wp.abs(rot[0, 0]), wp.abs(rot[0, 1]), wp.abs(rot[0, 2]))
-  up = wp.vec3(wp.abs(rot[1, 0]), wp.abs(rot[1, 1]), wp.abs(rot[1, 2]))
-  forward = wp.vec3(wp.abs(rot[2, 0]), wp.abs(rot[2, 1]), wp.abs(rot[2, 2]))
-
-  # Compute world space half-extents
-  world_extents = (
-    right * half_extents.x + up * half_extents.y + forward * half_extents.z
-  )
-
-  # Transform center
-  new_center = rot @ center + pos
-
-  # Return new AABB as matrix with center and full size
-  result = BoxType()
-  result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-  result[1] = wp.vec3(
-    world_extents.x * 2.0, world_extents.y * 2.0, world_extents.z * 2.0
-  )
-  return result
 
 
 def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos, rot):
@@ -101,11 +64,10 @@ def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos
 
   for i in range(num_boxes_per_world):
     box_a = boxes[i]
-    box_a = transform_aabb(box_a, pos[worldId, i], rot[worldId, i])
+    
 
     for j in range(i + 1, num_boxes_per_world):
       box_b = boxes[j]
-      box_b = transform_aabb(box_b, pos[worldId, j], rot[worldId, j])
 
       # Use the overlap function to check for overlap
       if overlap(box_a, box_b):
@@ -164,7 +126,7 @@ class BroadPhaseTest(parameterized.TestCase):
     # Create some test boxes
     num_worlds = d.nworld
     num_boxes_per_world = m.ngeom
-    # print(f"num_worlds: {num_worlds}, num_boxes_per_world: {num_boxes_per_world}")
+    print(f"num_worlds: {num_worlds}, num_boxes_per_world: {num_boxes_per_world}")
 
     # Parameters for random box generation
     sample_space_origin = wp.vec3(-10.0, -10.0, -10.0)  # Origin of the bounding volume
@@ -192,8 +154,8 @@ class BroadPhaseTest(parameterized.TestCase):
       size_z = min_edge_length + random.random() * (max_edge_length - min_edge_length)
 
       # Create box with random position and size
-      center, size = init_box(pos_x, pos_y, pos_z, pos_x + size_x, pos_y + size_y, pos_z + size_z)
-      boxes_list.append([center, size])
+      box_min, box_max = init_box(pos_x, pos_y, pos_z, pos_x + size_x, pos_y + size_y, pos_z + size_z)
+      boxes_list.append([box_min, box_max])
 
     # Generate random positions and orientations for each box
     pos = []
@@ -242,6 +204,7 @@ class BroadPhaseTest(parameterized.TestCase):
     d.geom_xmat = wp.array(rot, dtype=wp.mat33)
     d.geom_xmat = d.geom_xmat.reshape((num_worlds, num_boxes_per_world))
 
+    print("mjx.broadphase")
     mjx.broadphase(m, d)
 
     result = d.broadphase_pairs

@@ -412,6 +412,7 @@ def broadphase_sweep_and_prune_kernel(
     if (body_contype[body1] == 0 and body_conaffinity[body1] == 0) or (
       body_contype[body2] == 0 and body_conaffinity[body2] == 0
     ):
+      threadId += num_threads
       continue
 
     signature = (body1 << 16) + body2
@@ -422,17 +423,20 @@ def broadphase_sweep_and_prune_kernel(
         break
 
     if filtered:
+      threadId += num_threads
       continue
 
     w1 = body_weldid[body1]
     w2 = body_weldid[body2]
     if w1 == w2:
+      threadId += num_threads
       continue
 
     # Filter parent not supported yet
     # w1_p = body_weldid[body_parentid[w1]]
     # w2_p = body_weldid[body_parentid[w2]]
     # if filter_parent and w1 != 0 and w2 != 0 and (w1 == w2_p or w2 == w1_p):
+          threadId += num_threads
     #     continue
     # Collision filtering end
     """
@@ -440,6 +444,7 @@ def broadphase_sweep_and_prune_kernel(
     body1 = geom_bodyid[i]
     body2 = geom_bodyid[j]
     if body1 == body2:
+      threadId += num_threads
       continue
 
     # Check if the boxes overlap
@@ -563,6 +568,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   direction = wp.normalize(direction)
   abs_dir = wp.vec3(abs(direction.x), abs(direction.y), abs(direction.z))
 
+  print("broadphase_project_boxes_onto_sweep_direction")
   wp.launch(
     kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
@@ -576,14 +582,15 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       d.result_count,
     ],
   )
-
+  wp.synchronize()
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
 
   if segmented_sort_available:
-    # print("Using segmented sort")
+    print("Using segmented sort")
     wp.utils.segmented_sort_pairs(
       d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices
     )
+    wp.synchronize()
   else:
     # Sort each world's segment separately
     for world_id in range(d.nworld):
@@ -634,12 +641,15 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
         m.ngeom,
       )
 
+  print("reorder_bounding_boxes_kernel")
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[d.dyn_geom_aabb, d.boxes_sorted, d.data_indexer],
   )
+  wp.synchronize()
 
+  print("broadphase_sweep_and_prune_prepare_kernel")
   wp.launch(
     kernel=broadphase_sweep_and_prune_prepare_kernel,
     dim=(d.nworld, m.ngeom),
@@ -651,12 +661,13 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       d.ranges,
     ],
   )
-
+  wp.synchronize()
   # The scan (scan = cumulative sum, either inclusive or exclusive depending on the last argument) is used for load balancing among the threads
   wp.utils.array_scan(d.ranges.reshape(-1), d.cumulative_sum, True)
 
   # Estimate how many overlap checks need to be done - assumes each box has to be compared to 5 other boxes (and batched over all worlds)
   num_sweep_threads = 5 * d.nworld * m.ngeom
+  print("broadphase_sweep_and_prune_kernel")
   wp.launch(
     kernel=broadphase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
@@ -681,7 +692,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       m.geom_bodyid,
     ],
   )
-
+  wp.synchronize()
 
 ###########################################################################################3
 
@@ -718,6 +729,7 @@ def broadphase(m: Model, d: Data):
   #     d.dyn_body_aamm,
   #   ],
 
+  print("get_dyn_geom_aabb")
   wp.launch(
     kernel=get_dyn_geom_aabb,
     dim=(d.nworld, m.ngeom),
@@ -726,6 +738,7 @@ def broadphase(m: Model, d: Data):
       d.dyn_geom_aabb,
     ],
   )
+  wp.synchronize()
 
   broadphase_sweep_and_prune(m, d)
 
