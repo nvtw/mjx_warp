@@ -233,10 +233,10 @@ class BroadPhaseTest(parameterized.TestCase):
     )
 
     # Test the broad phase by setting custom aabb data
-    d.dyn_body_aamm = wp.array(
+    d.dyn_geom_aabb = wp.array(
       boxes_list, dtype=wp.vec3, ndim=2
     )
-    d.dyn_body_aamm = d.dyn_body_aamm.reshape((num_worlds, num_boxes_per_world, 2))
+    d.dyn_geom_aabb = d.dyn_geom_aabb.reshape((num_worlds, num_boxes_per_world, 2))
     d.geom_xpos = wp.array(pos, dtype=wp.vec3)
     d.geom_xpos = d.geom_xpos.reshape((num_worlds, num_boxes_per_world))
     d.geom_xmat = wp.array(rot, dtype=wp.mat33)

@@ -134,7 +134,7 @@ def get_dyn_body_aamm(
 def get_dyn_geom_aabb(
   geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
   geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
-  geom_aabb: wp.array(dtype=wp.vec3, ndim=3),
+  geom_aabb: wp.array(dtype=wp.vec3, ndim=2),
   dyn_aabb: wp.array(dtype=wp.vec3, ndim=3),
 ):
   env_id, gid = wp.tid()
@@ -150,10 +150,10 @@ def get_dyn_geom_aabb(
   # mat = xposmat_to_float4(geom_xpos, geom_xmat, env_id, gid)
 
   aabb = geom_aabb[
-    env_id, gid, 0
+    gid, 0
   ]  # wp.vec3(geom_aabb[gid * 6 + 3], geom_aabb[gid * 6 + 4], geom_aabb[gid * 6 + 5])
   aabb_pos = geom_aabb[
-    env_id, gid, 1
+    gid, 1
   ]  # wp.vec3(geom_aabb[gid * 6], geom_aabb[gid * 6 + 1], geom_aabb[gid * 6 + 2])
 
   aabb_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
@@ -582,7 +582,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   if segmented_sort_available:
     # print("Using segmented sort")
     wp.utils.segmented_sort_pairs(
-      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
+      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices
     )
   else:
     # Sort each world's segment separately
@@ -678,7 +678,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       m.body_conaffinity,
       # body_has_plane,
       m.exclude_signature,
-      d.geom_bodyid,
+      m.geom_bodyid,
     ],
   )
 
@@ -703,20 +703,6 @@ def broadphase(m: Model, d: Data):
   # get geom AABBs in global frame
   # get geom pairs
 
-  # generate body AAMMs
-  # wp.launch(
-  #   kernel=get_dyn_body_aamm,
-  #   dim=(d.nworld, m.nbody),
-  #   inputs=[
-  #     m.body_geomnum,
-  #     m.body_geomadr,
-  #     m.geom_margin,
-  #     d.geom_xpos,
-  #     m.geom_rbound,
-  #     d.dyn_body_aamm,
-  #   ],
-  # )
-
   # get geom AABBs in global frame
   # wp.launch(
   #   kernel=get_dyn_body_aamm,
@@ -735,7 +721,7 @@ def broadphase(m: Model, d: Data):
   wp.launch(
     kernel=get_dyn_geom_aabb,
     dim=(d.nworld, m.ngeom),
-    inputs=[d.geom_xpos, d.geom_xmat, d.geom_aabb],
+    inputs=[d.geom_xpos, d.geom_xmat, m.geom_aabb],
     outputs=[
       d.dyn_geom_aabb,
     ],
