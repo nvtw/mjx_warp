@@ -17,6 +17,7 @@ from typing import Any
 import warp as wp
 
 from .types import Contact, Data, Model
+import math
 
 
 @wp.func
@@ -51,16 +52,97 @@ def get_axis(
     return wp.normalize(axis), is_degenerate
 
 
+@wp.func
+def get_axis_support(
+    axis: wp.vec3,
+) -> tuple[wp.float32, bool]:
+    """Get the overlap (or separating distance if negative) along `axis`, and the sign.
+    """
+    return 0.0, True
+
+
+@wp.struct
+class SupportAxis:
+    best_dist: wp.float32
+    best_sign: wp.int8
+    best_idx: wp.int8
+
+
+@wp.func
+def reduce_support_axis(a: SupportAxis, b: SupportAxis):
+  return wp.select(a.best_dist > b.best_dist, a, b)
+
+
+@wp.func
+def collision_axis_tiled(
+    normals_a: wp.array(dtype=wp.vec3),
+    normals_b: wp.array(dtype=wp.vec3),
+    R: wp.array(dtype=wp.mat33),
+    bp_idx: int,
+    axis_idx: int,
+) -> tuple[wp.vec3, wp.int8, ]:
+  """Finds the axis of minimum separation or maximum overlap.
+  Returns:
+    best_axis: vec3
+    best_idx: int8
+  """
+  # launch tiled with dim box_pairs and block_dim=21
+  # TODO(ca): tiled axis of minimum seperation
+  
+  return wp.vec3(0.0)
+
+
+@wp.func
+def create_contact_manifold(
+  m: Model,
+  d: Data,
+  ) -> tuple[wp.float32, wp.vec3, wp.mat33]:
+  pass
+
+
+@wp.kernel
+def box_box_kernel(
+  m: Model,
+  d: Data,
+  group_key: int,
+  num_kernels: int,
+):
+  """Calculates contacts between pairs of boxes."""
+  thread_idx, axis_idx = wp.tid()
+
+  num_candidate_contacts = d.narrowphase_candidate_group_count[group_key]
+
+  for bp_idx in range(thread_idx, num_candidate_contacts, num_kernels):
+    box1_idx, box2_idx = d.narrowphase_candidate_geom[group_key, bp_idx]
+    worldid = d.narrowphase_candidate_worldid[group_key, bp_idx]
+
+    # box-box implementation
+    sep_axis, sep_axis_idx = collision_axis_tiled(m, d, bp_idx, axis_idx)
+    dist, pos, frame = create_contact_manifold(m, d, bp_idx, axis_idx)
+
+    # if contact
+    if axis_idx == 0 and dist < 0:
+      contact_idx = wp.atomic_add(d.contact_counter, 0, 1)
+      d.contact.dist[contact_idx] = dist
+      d.contact.pos[contact_idx] = pos
+      d.contact.frame[contact_idx] = frame
+      d.contact.worldid[contact_idx] = worldid
+
+
 def box_box(
   m: Model,
   d: Data,
-  worldId: wp.array(dtype=wp.int32, ndim=1),
-  planeIndex: wp.array(dtype=wp.int32, ndim=1),
-  convexIndex: wp.array(dtype=wp.int32, ndim=1),
-  outBaseIndex: wp.array(dtype=wp.int32, ndim=1),
-  result: Contact,
+  group_key: int,
 ):
   """Calculates contacts between pairs of boxes."""
+  kernel_ratio = 16
+  num_kernels = math.ceil(d.nconmax / kernel_ratio)  # parallel kernels excluding tile dim
+  wp.launch_tiled(
+    kernel=box_box_kernel,
+    dim=num_kernels,
+    inputs=[m, d, group_key, num_kernels],
+    block_dim=21,
+  )
 @wp.func
 def _argmax(a: wp.array(dtype=Any)) -> wp.int32:
     m = type(a[0])(a[0])
