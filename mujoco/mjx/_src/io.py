@@ -221,7 +221,6 @@ def make_data(
 ) -> types.Data:
   d = types.Data()
   d.nworld = nworld
-  d.ncon_total = wp.zeros((1,), dtype=wp.int32, ndim=1)
   d.nefc_total = wp.zeros((1,), dtype=wp.int32, ndim=1)
 
   # TODO(team): move to Model?
@@ -234,7 +233,7 @@ def make_data(
     njmax = 512
   d.njmax = njmax
 
-  d.ncon = 0
+  d.ncon = wp.zeros(1, dtype=wp.int32)
   d.nefc = wp.zeros(nworld, dtype=wp.int32)
   d.nl = 0
   d.time = 0.0
@@ -355,7 +354,6 @@ def put_data(
 ) -> types.Data:
   d = types.Data()
   d.nworld = nworld
-  d.ncon_total = wp.array([mjd.ncon * nworld], dtype=wp.int32, ndim=1)
   d.nefc_total = wp.array([mjd.nefc * nworld], dtype=wp.int32, ndim=1)
 
   # TODO(team): move to Model?
@@ -371,7 +369,7 @@ def put_data(
   if nworld * mjd.nefc > njmax:
     raise ValueError("nworld * nefc > njmax")
 
-  d.ncon = mjd.ncon
+  d.ncon = wp.array([mjd.ncon], dtype=wp.int32, ndim=1)
   d.nl = mjd.nl
   d.nefc = wp.zeros(1, dtype=wp.int32)
   d.time = mjd.time
@@ -535,8 +533,6 @@ def put_data(
   d.contact.efc_address = wp.array(con_efc_address, dtype=wp.int32, ndim=1)
   d.contact.worldid = wp.array(con_worldid, dtype=wp.int32, ndim=1)
 
-  d.contact_counter = wp.zeros(1, dtype=wp.int32)
-
   d.xfrc_applied = wp.array(tile(mjd.xfrc_applied), dtype=wp.spatial_vector, ndim=2)
   # internal tmp arrays
   d.qfrc_integration = wp.zeros((nworld, mjm.nv), dtype=wp.float32)
@@ -564,10 +560,10 @@ def put_data(
   # internal narrowphase tmp arrays
   ngroups = types.NUM_GEOM_TYPES
   d.narrowphase_candidate_worldid = wp.empty(
-    (ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2
+    (ngroups, d.max_num_overlaps_per_world * nworld), dtype=wp.int32, ndim=2
   )
   d.narrowphase_candidate_geom = wp.empty(
-    (ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2
+    (ngroups, d.max_num_overlaps_per_world * nworld), dtype=wp.vec2i, ndim=2
   )
   d.narrowphase_candidate_group_count = wp.zeros(ngroups, dtype=wp.int32, ndim=1)
 

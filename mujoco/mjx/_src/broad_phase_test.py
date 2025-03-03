@@ -30,7 +30,7 @@ class BroadPhaseTest(parameterized.TestCase):
     """Tests broad phase."""
     _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")
 
-    mjx.broad_phase(m, d)
+    mjx.broadphase(m, d)
 
 
 if __name__ == "__main__":

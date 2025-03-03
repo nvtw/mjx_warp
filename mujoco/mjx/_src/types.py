@@ -316,7 +316,6 @@ class Contact:
 @wp.struct
 class Data:
   nworld: int
-  ncon_total: wp.array(dtype=wp.int32, ndim=1)  # warp only
   nefc_total: wp.array(dtype=wp.int32, ndim=1)  # warp only
   nconmax: int
   njmax: int
@@ -325,7 +324,7 @@ class Data:
   qvel: wp.array(dtype=wp.float32, ndim=2)
   qacc_warmstart: wp.array(dtype=wp.float32, ndim=2)
   qfrc_applied: wp.array(dtype=wp.float32, ndim=2)
-  ncon: int
+  ncon: wp.array(dtype=wp.int32, ndim=1)
   nl: int
   nefc: wp.array(dtype=wp.int32, ndim=1)
   ctrl: wp.array(dtype=wp.float32, ndim=2)
@@ -377,7 +376,6 @@ class Data:
   efc_worldid: wp.array(dtype=wp.int32, ndim=1)  # warp only
   xfrc_applied: wp.array(dtype=wp.spatial_vector, ndim=2)
   contact: Contact
-  contact_counter: wp.array(dtype=wp.int32, ndim=1)
 
   # temp arrays
   qfrc_integration: wp.array(dtype=wp.float32, ndim=2)

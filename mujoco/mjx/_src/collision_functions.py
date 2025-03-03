@@ -44,7 +44,7 @@ def plane_convex_kernel(m: Model, d: Data, group_key: int):
   #  pass # mesh-specific stuff
 
   # if contact
-  index = wp.atomic_add(d.contact_counter, 0, 1)
+  index = wp.atomic_add(d.ncon, 0, 1)
   # d.contact.dist[index] = dist
   # d.contact.pos[index] = pos
   # d.contact.frame[index] = frame
