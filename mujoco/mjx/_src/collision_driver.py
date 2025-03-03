@@ -361,10 +361,6 @@ def get_contact_solver_params_kernel(
       is_standard, solref_[i], wp.min(m.geom_solref[g1, i], m.geom_solref[g2, i])
     )
 
-  # solimp_ = wp.zeros(mjNIMP, dtype=float)
-  # for i in range(mjNIMP):
-  #     solimp_[i] = mix * geom_solimp[i + g1 * mjNIMP] + (1 - mix) * geom_solimp[i + g2 * mjNIMP]
-
   friction_ = wp.vec3(0.0, 0.0, 0.0)
   for i in range(3):
     friction_[i] = wp.max(m.geom_friction[g1, i], m.geom_friction[g2, i])
