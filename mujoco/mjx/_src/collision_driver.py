@@ -379,7 +379,7 @@ def get_contact_solver_params_kernel(
   geom_solimp: array2df,
   geom_margin: wp.array(dtype=wp.float32),
   geom_gap: wp.array(dtype=wp.float32),
-  contact_counter: wp.array(dtype=wp.int32),
+  ncon: wp.array(dtype=wp.int32),
   # outputs
   includemargin: wp.array(dtype=wp.float32),
   friction: wp.array(dtype=vec5),
@@ -389,7 +389,7 @@ def get_contact_solver_params_kernel(
 ):
   tid = wp.tid()
 
-  n_contact_pts = contact_counter[0]
+  n_contact_pts = ncon[0]
   if tid >= n_contact_pts:
     return
 
@@ -655,7 +655,7 @@ def group_contacts_by_type(m: Model, d: Data):
   )
 
   # Initialize the env contact counter
-  d.contact_counter.zero_()
+  d.ncon.zero_()
 
 
 def get_contact_solver_params(m: Model, d: Data):
@@ -671,7 +671,7 @@ def get_contact_solver_params(m: Model, d: Data):
       m.geom_solimp,
       m.geom_margin,
       m.geom_gap,
-      d.contact_counter,
+      d.ncon,
     ],
     outputs=[
       d.contact.includemargin,
