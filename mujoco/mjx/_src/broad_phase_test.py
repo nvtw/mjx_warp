@@ -242,11 +242,11 @@ class BroadPhaseTest(parameterized.TestCase):
     <mujoco>
       <worldbody>
         <geom size="40 40 40" type="plane"/>
-        <body pos="0 0 0.7" euler="0 0 0">
+        <body pos="0 0 0.7">
           <freejoint/>
           <geom size="0.5 0.5 0.5" type="box"/>
         </body>
-        <body pos="1.5 0 0.7">
+        <body pos="0.1 0 0.7">
           <freejoint/>
           <geom size="0.5 0.5 0.5" type="box"/>
         </body>
@@ -255,6 +255,17 @@ class BroadPhaseTest(parameterized.TestCase):
     """
 
     # run the BP
+    m = mujoco.MjModel.from_xml_string(_MODEL)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mjx.broadphase(mx, dx)
+
+    print(dx.result_count)
 
     # check that the intersections are valid
 
