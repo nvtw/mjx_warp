@@ -26,6 +26,7 @@ from .types import DisableBit
 from .support import where
 from .support import group_key
 
+
 @wp.struct
 class AABB:
   min: wp.vec3
@@ -33,7 +34,9 @@ class AABB:
 
 
 @wp.func
-def transform_aabb(aabb_pos: wp.vec3, aabb_size: wp.vec3, pos: wp.vec3, ori: wp.mat33) -> AABB:
+def transform_aabb(
+  aabb_pos: wp.vec3, aabb_size: wp.vec3, pos: wp.vec3, ori: wp.mat33
+) -> AABB:
   aabb = AABB()
   aabb.max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
   aabb.min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
@@ -46,13 +49,12 @@ def transform_aabb(aabb_pos: wp.vec3, aabb_size: wp.vec3, pos: wp.vec3, ori: wp.
       corner.y = -corner.y
     if i < 4:
       corner.z = -corner.z
-    corner_world = (
-      ori * (corner + aabb_pos) + pos
-    )
+    corner_world = ori * (corner + aabb_pos) + pos
     aabb.max = wp.max(aabb.max, corner_world)
     aabb.min = wp.min(aabb.min, corner_world)
-    
+
   return aabb
+
 
 @wp.kernel
 def get_dyn_geom_aabb(
@@ -126,12 +128,12 @@ def broadphase_project_boxes_onto_sweep_direction_kernel(
   box_max = d.dyn_geom_aabb[worldId, i, 1]
   c = (box_min + box_max) * 0.5
   box_half_size = (box_max - box_min) * 0.5
-  
+
   # Use fixed direction vector and its absolute values
   direction = wp.vec3(0.5935, 0.7790, 0.1235)
   direction = wp.normalize(direction)
   abs_dir = wp.vec3(abs(direction.x), abs(direction.y), abs(direction.z))
-  
+
   center = wp.dot(direction, c)
   d_val = wp.dot(box_half_size, abs_dir)
   f = center - d_val
@@ -238,10 +240,7 @@ def find_indices(
 
 @wp.kernel
 def broadphase_sweep_and_prune_kernel(
-  m: Model,
-  d: Data,
-  num_threads: int,
-  filter_parent: bool
+  m: Model, d: Data, num_threads: int, filter_parent: bool
 ):
   threadId = wp.tid()  # Get thread ID
   if d.cumulative_sum.shape[0] > 0:
@@ -275,7 +274,7 @@ def broadphase_sweep_and_prune_kernel(
     if body1 == body2:
       threadId += num_threads
       continue
-    
+
     # contype/affinity filtering
     contype1 = m.body_contype[body1]
     contype2 = m.body_contype[body2]
@@ -286,14 +285,19 @@ def broadphase_sweep_and_prune_kernel(
     if not compatible:
       threadId += num_threads
       continue
-    
+
     # parent-child
     body1_p = m.body_weldid[m.body_parentid[body1]]
     body2_p = m.body_weldid[m.body_parentid[body2]]
-    if filter_parent and body1 != 0 and body2 != 0 and (body1 == body2_p or body2 == body1_p):
+    if (
+      filter_parent
+      and body1 != 0
+      and body2 != 0
+      and (body1 == body2_p or body2 == body1_p)
+    ):
       threadId += num_threads
       continue
-    
+
     # welded bodies
     w1 = m.body_weldid[body1]
     w2 = m.body_weldid[body2]
@@ -491,6 +495,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
     inputs=[m, d, num_sweep_threads, filter_parent],
   )
 
+
 ###########################################################################################3
 
 
@@ -515,10 +520,11 @@ def broadphase(m: Model, d: Data):
 
   broadphase_sweep_and_prune(m, d)
 
+
 def group_contacts_by_type(m: Model, d: Data):
   # initialize type pair count & group contacts by type
 
-  # Initialize type pair count 
+  # Initialize type pair count
   d.narrowphase_candidate_group_count.zero_()
 
   wp.launch(

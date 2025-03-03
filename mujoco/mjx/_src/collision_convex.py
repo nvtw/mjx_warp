@@ -21,6 +21,6 @@ from .types import Data
 # XXX disable backward pass codegen globally for now
 wp.config.enable_backward = False
 
+
 def narrowphase(m: Model, d: Data):
   pass
-

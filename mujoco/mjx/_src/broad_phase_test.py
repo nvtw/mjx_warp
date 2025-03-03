@@ -33,7 +33,6 @@ class AABB:
 
 
 def transform_aabb(aabb_pos, aabb_size, pos: wp.vec3, ori: wp.mat33) -> AABB:
-  
   aabb = AABB()
   aabb.max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
   aabb.min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
@@ -46,12 +45,12 @@ def transform_aabb(aabb_pos, aabb_size, pos: wp.vec3, ori: wp.mat33) -> AABB:
       corner.y = -corner.y
     if i < 4:
       corner.z = -corner.z
-    corner_world = (
-      ori @ (corner + wp.vec3(aabb_pos[0], aabb_pos[1], aabb_pos[2])) + wp.vec3(pos[0], pos[1], pos[2])
-    )
+    corner_world = ori @ (
+      corner + wp.vec3(aabb_pos[0], aabb_pos[1], aabb_pos[2])
+    ) + wp.vec3(pos[0], pos[1], pos[2])
     aabb.max = wp.max(aabb.max, corner_world)
     aabb.min = wp.min(aabb.min, corner_world)
-    
+
   return aabb
 
 
@@ -87,8 +86,10 @@ def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos
     aabb_i = transform_aabb(boxes[i][0], boxes[i][1], pos[worldId][i], rot[worldId][i])
 
     for j in range(i + 1, num_boxes_per_world):
-      aabb_j = transform_aabb(boxes[j][0], boxes[j][1], pos[worldId][j], rot[worldId][j])
-      
+      aabb_j = transform_aabb(
+        boxes[j][0], boxes[j][1], pos[worldId][j], rot[worldId][j]
+      )
+
       if overlap(aabb_i, aabb_j):
         overlaps.append((i, j))  # Store indices of overlapping boxes
 
@@ -136,7 +137,6 @@ class BroadPhaseTest(parameterized.TestCase):
     """Tests broad phase."""
     _, mjd, m, d = test_util.fixture("cube.xml")
 
-   
     aabbs = m.geom_aabb.numpy()
     pos = d.geom_xpos.numpy()
     rot = d.geom_xmat.numpy()
@@ -145,8 +145,9 @@ class BroadPhaseTest(parameterized.TestCase):
     pos = pos.reshape((d.nworld, m.ngeom, 3))
     rot = rot.reshape((d.nworld, m.ngeom, 3, 3))
 
-    brute_force_overlaps = find_overlaps_brute_force_batched(d.nworld, m.ngeom, aabbs, pos, rot)
-
+    brute_force_overlaps = find_overlaps_brute_force_batched(
+      d.nworld, m.ngeom, aabbs, pos, rot
+    )
 
     mjx.broadphase(m, d)
 
@@ -227,7 +228,7 @@ class BroadPhaseTest(parameterized.TestCase):
 
     mjx.broadphase(mx, dx)
 
-    assert(dx.result_count.numpy()[0] == 8)
+    assert dx.result_count.numpy()[0] == 8
 
 
 if __name__ == "__main__":
