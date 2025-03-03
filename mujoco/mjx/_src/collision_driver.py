@@ -76,8 +76,8 @@ def get_dyn_geom_aabb(
   pos = d.geom_xpos[env_id, gid]
   ori = d.geom_xmat[env_id, gid]
 
-  aabb = m.geom_aabb[gid, 0]
-  aabb_pos = m.geom_aabb[gid, 1]
+  aabb_pos = m.geom_aabb[gid, 0]
+  aabb = m.geom_aabb[gid, 1]
 
   aabb_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
   aabb_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
@@ -551,6 +551,9 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   )
   wp.synchronize()
 
+  print(d.broadphase_pairs.numpy())
+  print(d.result_count.numpy())
+
 ###########################################################################################3
 
 
@@ -578,6 +581,8 @@ def broadphase(m: Model, d: Data):
   #   inputs=[m, d],
   # )
 
+  print(m.geom_aabb.numpy())
+
   print("get_dyn_geom_aabb")
   wp.launch(
     kernel=get_dyn_geom_aabb,
@@ -585,6 +590,8 @@ def broadphase(m: Model, d: Data):
     inputs=[m, d],
   )
   wp.synchronize()
+
+  print(d.dyn_geom_aabb.numpy())
 
   broadphase_sweep_and_prune(m, d)
 

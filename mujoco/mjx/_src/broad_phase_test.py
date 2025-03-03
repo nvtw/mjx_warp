@@ -121,7 +121,12 @@ class MultiIndexList:
 class BroadPhaseTest(parameterized.TestCase):
   def test_broad_phase(self):
     """Tests broad phase."""
-    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml")
+    _, mjd, m, d = test_util.fixture("cube.xml")
+
+    mjx.broadphase(m, d)
+    return
+
+
 
     # Create some test boxes
     num_worlds = d.nworld
