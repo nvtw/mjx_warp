@@ -12,30 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import itertools
 from typing import Any
 
 import warp as wp
+import numpy as np
 
 from .types import Contact, Data, Model
 import math
 
 
+@wp.struct
+class Box:
+  verts: wp.array(dtype=wp.vec3, ndim=1)
+
+
 @wp.func
 def get_axis(
     axis_idx: int,
-    normals_a: wp.array(dtype=wp.vec3, ndim=1),
-    normals_b: wp.array(dtype=wp.vec3, ndim=1),
     R: wp.mat33,
 ) -> tuple[wp.vec3, bool]:
     """Get the axis at index axis_idx.
-    R: rotation matrix between box a and b
+    R: rotation matrix from a to b
     Axes 0-12 are face normals of boxes a & b
     Axes 12-21 are edge cross products."""
     if axis_idx < 6: # a faces
-        axis = normals_a[axis_idx]
+        axis = R @ wp.vec3(BOX_NORMALS[axis_idx])
         is_degenerate = False
     elif axis_idx < 12: # b faces
-        axis = normals_b[axis_idx-6]
+        axis = wp.vec3(BOX_NORMALS[axis_idx-6])
         is_degenerate = False
     else: # edges
         assert axis_idx < 21
@@ -52,13 +57,29 @@ def get_axis(
     return wp.normalize(axis), is_degenerate
 
 
+LARGE_VAL = 1e6
+
+
 @wp.func
-def get_axis_support(
-    axis: wp.vec3,
-) -> tuple[wp.float32, bool]:
-    """Get the overlap (or separating distance if negative) along `axis`, and the sign.
-    """
-    return 0.0, True
+def get_box_axis_support(axis: wp.vec3, degenerate_axis: bool, a: Box, b: Box) -> tuple[wp.float32, bool]:
+    """Get the overlap (or separating distance if negative) along `axis`, and the sign."""
+    axis_d = wp.vec3d(axis)
+    support_a_max, support_b_max = wp.float32(-LARGE_VAL), wp.float32(-LARGE_VAL)
+    support_a_min, support_b_min = wp.float32(LARGE_VAL), wp.float32(LARGE_VAL)
+    for i in range(8):
+      vert_a = wp.vec3d(a.verts[i])
+      vert_b = wp.vec3d(b.verts[i])
+      proj_a = wp.float32(wp.dot(vert_a, axis_d))
+      proj_b = wp.float32(wp.dot(vert_b, axis_d))
+      support_a_max = wp.max(support_a_max, proj_a)
+      support_b_max = wp.max(support_b_max, proj_b)
+      support_a_min = wp.min(support_a_min, proj_a)
+      support_b_min = wp.min(support_b_min, proj_b)
+    dist1 = support_a_max - support_b_min
+    dist2 = support_b_max - support_a_min
+    dist = wp.select(degenerate_axis, wp.min(dist1, dist2), LARGE_VAL)
+    sign = wp.select(dist1 > dist2, 1, -1)
+    return dist, sign
 
 
 @wp.struct
@@ -71,6 +92,42 @@ class SupportAxis:
 @wp.func
 def reduce_support_axis(a: SupportAxis, b: SupportAxis):
   return wp.select(a.best_dist > b.best_dist, a, b)
+
+
+BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
+
+BOX_FACES = np.array([
+      0, 4, 5, 1,
+      0, 2, 6, 4,
+      6, 7, 5, 4,
+      2, 3, 7, 6,
+      1, 5, 7, 3,
+      0, 1, 3, 2,
+  ]).reshape((-1, 4))
+
+BOX_NORMALS = np.array(
+    [[ 0, -1,  0],
+     [ 0,  0, -1],
+     [ 1,  0,  0],
+     [ 0,  1,  0],
+     [ 0,  0,  1],
+     [-1,  0,  0]]).reshape((-1, 3))
+
+
+@wp.func
+def box(m: Model, geom_idx: int, R: wp.mat33, t: wp.vec3) -> Box:
+  """Get a transformed box"""
+  x, y, z = m.geom_size[geom_idx, 0], m.geom_size[geom_idx, 1], m.geom_size[geom_idx, 2]
+  b = Box()
+  b.verts[0] = R @ wp.vec3(-x, -y, -z) + t
+  b.verts[1] = R @ wp.vec3(-x, -y, +z) + t
+  b.verts[2] = R @ wp.vec3(-x, +y, -z) + t
+  b.verts[3] = R @ wp.vec3(-x, +y, +z) + t
+  b.verts[4] = R @ wp.vec3(+x, -y, -z) + t
+  b.verts[5] = R @ wp.vec3(+x, -y, +z) + t
+  b.verts[6] = R @ wp.vec3(+x, +y, -z) + t
+  b.verts[7] = R @ wp.vec3(+x, +y, +z) + t
+  return b
 
 
 @wp.func
