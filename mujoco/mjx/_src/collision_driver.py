@@ -34,48 +34,12 @@ from .support import group_key
 #####################################################################################
 # BROADPHASE
 #####################################################################################
-# old kernel for aabb calculation - not sure if this is correct
-# @wp.func
-# def transform_aabb(
-#   aabb: wp.types.matrix(shape=(2, 3), dtype=wp.float32),
-#   pos: wp.vec3,
-#   rot: wp.mat33,
-# ) -> wp.types.matrix(shape=(2, 3), dtype=wp.float32):
-#   # Extract center and extents from AABB
-#   center = aabb[0]
-#   extents = aabb[1]
-
-#   absRot = rot
-#   absRot[0, 0] = wp.abs(rot[0, 0])
-#   absRot[0, 1] = wp.abs(rot[0, 1])
-#   absRot[0, 2] = wp.abs(rot[0, 2])
-#   absRot[1, 0] = wp.abs(rot[1, 0])
-#   absRot[1, 1] = wp.abs(rot[1, 1])
-#   absRot[1, 2] = wp.abs(rot[1, 2])
-#   absRot[2, 0] = wp.abs(rot[2, 0])
-#   absRot[2, 1] = wp.abs(rot[2, 1])
-#   absRot[2, 2] = wp.abs(rot[2, 2])
-#   world_extents = extents * absRot
-
-#   # Transform center
-#   new_center = rot @ center + pos
-
-#   # Return new AABB as matrix with center and full size
-#   result = BoxType()
-#   result[0] = wp.vec3(new_center.x, new_center.y, new_center.z)
-#   result[1] = wp.vec3(world_extents.x, world_extents.y, world_extents.z)
-#   return result
-
 
 # use this kernel to get the AAMM for each body
 @wp.kernel
 def get_dyn_body_aamm(
-  body_geomnum: wp.array(dtype=int),
-  body_geomadr: wp.array(dtype=int),
-  geom_margin: wp.array(dtype=float),
-  geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
-  geom_rbound: wp.array(dtype=float),
-  dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3),
+  m: Model,
+  d: Data,
 ):
   env_id, bid = wp.tid()
 
@@ -84,13 +48,13 @@ def get_dyn_body_aamm(
   aamm_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
 
   # Iterate over all geometries associated with the body
-  for i in range(body_geomnum[bid]):
-    g = body_geomadr[bid] + i
+  for i in range(m.body_geomnum[bid]):
+    g = m.body_geomadr[bid] + i
 
     for j in range(3):
-      pos = geom_xpos[env_id, g][j]
-      rbound = geom_rbound[g]
-      margin = geom_margin[g]
+      pos = d.geom_xpos[env_id, g][j]
+      rbound = m.geom_rbound[g]
+      margin = m.geom_margin[g]
 
       min_val = pos - rbound - margin
       max_val = pos + rbound + margin
@@ -99,62 +63,21 @@ def get_dyn_body_aamm(
       aamm_max[j] = wp.max(aamm_max[j], max_val)
 
   # Write results to output
-  dyn_body_aamm[env_id, bid, 0] = aamm_min
-  dyn_body_aamm[env_id, bid, 1] = aamm_max
-
-
-# @wp.struct
-# class Mat3x4:
-#     row0 : wp.vec4
-#     row1 : wp.vec4
-#     row2 : wp.vec4
-
-# @wp.func
-# def xposmat_to_float4(xpos: wp.array(dtype=wp.vec3, ndim=2), xmat: wp.array(dtype=wp.mat33, ndim=2), env_id: int, gid: int) -> Mat3x4:
-#     result = Mat3x4()
-#     pos = xpos[env_id, gid]
-#     m = xmat[env_id, gid]
-#     result.row0 = wp.vec4(m[0, 0], m[0, 1], m[0, 2],
-#                           pos.x)
-#     result.row1 = wp.vec4(m[1, 0], m[1, 1], m[1, 2],
-#                           pos.y)
-#     result.row2 = wp.vec4(m[2, 0], m[2, 1], m[2, 2],
-#                           pos.z)
-#     return result
-
-# @wp.func
-# def transform_point(mat : Mat3x4, pos : wp.vec3)->wp.vec3:
-#     x = wp.dot(wp.vec3(mat.row0[0], mat.row0[1], mat.row0[2]), pos) + mat.row0[3]
-#     y = wp.dot(wp.vec3(mat.row1[0], mat.row1[1], mat.row1[2]), pos) + mat.row1[3]
-#     z = wp.dot(wp.vec3(mat.row2[0], mat.row2[1], mat.row2[2]), pos) + mat.row2[3]
-#     return wp.vec3(x, y, z)
-
+  d.dyn_body_aamm[env_id, bid, 0] = aamm_min
+  d.dyn_body_aamm[env_id, bid, 1] = aamm_max
 
 @wp.kernel
 def get_dyn_geom_aabb(
-  geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
-  geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
-  geom_aabb: wp.array(dtype=wp.vec3, ndim=2),
-  dyn_aabb: wp.array(dtype=wp.vec3, ndim=3),
+  m: Model,
+  d: Data,
 ):
   env_id, gid = wp.tid()
-  # if tid >= nenv * ngeom:
-  #     return
 
-  # env_id = tid // ngeom
-  # gid = tid % ngeom
+  pos = d.geom_xpos[env_id, gid]
+  ori = d.geom_xmat[env_id, gid]
 
-  pos = geom_xpos[env_id, gid]
-  ori = geom_xmat[env_id, gid]
-
-  # mat = xposmat_to_float4(geom_xpos, geom_xmat, env_id, gid)
-
-  aabb = geom_aabb[
-    gid, 0
-  ]  # wp.vec3(geom_aabb[gid * 6 + 3], geom_aabb[gid * 6 + 4], geom_aabb[gid * 6 + 5])
-  aabb_pos = geom_aabb[
-    gid, 1
-  ]  # wp.vec3(geom_aabb[gid * 6], geom_aabb[gid * 6 + 1], geom_aabb[gid * 6 + 2])
+  aabb = m.geom_aabb[gid, 0]
+  aabb_pos = m.geom_aabb[gid, 1]
 
   aabb_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
   aabb_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
@@ -169,20 +92,13 @@ def get_dyn_geom_aabb(
       corner.z = -corner.z
     corner_world = (
       ori * (corner + aabb_pos) + pos
-    )  # transform_point(mat, corner + aabb_pos)
+    )
     aabb_max = wp.max(aabb_max, corner_world)
     aabb_min = wp.min(aabb_min, corner_world)
 
   # Write results to output
-  dyn_aabb[env_id, gid, 0] = aabb_min
-  dyn_aabb[env_id, gid, 1] = aabb_max
-
-  # dyn_aabb[tid * 6 + 0] = aabb_min[0]
-  # dyn_aabb[tid * 6 + 1] = aabb_min[1]
-  # dyn_aabb[tid * 6 + 2] = aabb_min[2]
-  # dyn_aabb[tid * 6 + 3] = aabb_max[0]
-  # dyn_aabb[tid * 6 + 4] = aabb_max[1]
-  # dyn_aabb[tid * 6 + 5] = aabb_max[2]
+  d.dyn_geom_aabb[env_id, gid, 0] = aabb_min
+  d.dyn_geom_aabb[env_id, gid, 1] = aabb_max
 
 
 @wp.kernel
@@ -228,57 +144,55 @@ def overlap(
 
 @wp.kernel
 def broadphase_project_boxes_onto_sweep_direction_kernel(
-  boxes: wp.array(dtype=wp.vec3, ndim=3),
-  data_start: wp.array(dtype=wp.float32, ndim=2),
-  data_end: wp.array(dtype=wp.float32, ndim=2),
-  data_indexer: wp.array(dtype=wp.int32, ndim=2),
-  direction: wp.vec3,
-  abs_dir: wp.vec3,
-  result_count: wp.array(dtype=wp.int32, ndim=1),
+  m: Model,
+  d: Data,
 ):
   worldId, i = wp.tid()
 
-  # box = boxes[worldId, i]
-  # box = transform_aabb(box, box_translations[worldId, i], box_rotations[worldId, i])
-  box_min = boxes[worldId, i, 0]
-  box_max = boxes[worldId, i, 1]
+  box_min = d.dyn_geom_aabb[worldId, i, 0]
+  box_max = d.dyn_geom_aabb[worldId, i, 1]
   c = (box_min + box_max) * 0.5
   box_half_size = (box_max - box_min) * 0.5
+  
+  # Use fixed direction vector and its absolute values
+  direction = wp.vec3(0.5935, 0.7790, 0.1235)
+  direction = wp.normalize(direction)
+  abs_dir = wp.vec3(abs(direction.x), abs(direction.y), abs(direction.z))
+  
   center = wp.dot(direction, c)
-  d = wp.dot(box_half_size, abs_dir)
-  f = center - d
+  d_val = wp.dot(box_half_size, abs_dir)
+  f = center - d_val
 
   # Store results in the data arrays
-  data_start[worldId, i] = f
-  data_end[worldId, i] = center + d
-  data_indexer[worldId, i] = i
+  d.data_start[worldId, i] = f
+  d.data_end[worldId, i] = center + d_val
+  d.data_indexer[worldId, i] = i
 
   if i == 0:
-    result_count[worldId] = 0  # Initialize result count to 0
+    d.result_count[worldId] = 0  # Initialize result count to 0
 
 
 @wp.kernel
 def reorder_bounding_boxes_kernel(
-  boxes: wp.array(dtype=wp.vec3, ndim=3),
-  boxes_sorted: wp.array(dtype=wp.vec3, ndim=3),
-  data_indexer: wp.array(dtype=wp.int32, ndim=2),
+  m: Model,
+  d: Data,
 ):
   worldId, i = wp.tid()
 
   # Get the index from the data indexer
-  mapped = data_indexer[worldId, i]
+  mapped = d.data_indexer[worldId, i]
 
   # Get the box from the original boxes array
-  box_min = boxes[worldId, mapped, 0]
-  box_max = boxes[worldId, mapped, 1]
+  box_min = d.dyn_geom_aabb[worldId, mapped, 0]
+  box_max = d.dyn_geom_aabb[worldId, mapped, 1]
 
   # box = transform_aabb(
   #   box, box_translations[worldId, mapped], box_rotations[worldId, mapped]
   # )
 
   # Reorder the box into the sorted array
-  boxes_sorted[worldId, i, 0] = box_min
-  boxes_sorted[worldId, i, 1] = box_max
+  d.boxes_sorted[worldId, i, 0] = box_min
+  d.boxes_sorted[worldId, i, 1] = box_max
 
 
 @wp.func
@@ -300,26 +214,23 @@ def find_first_greater_than(
 
 @wp.kernel
 def broadphase_sweep_and_prune_prepare_kernel(
-  num_boxes_per_world: int,
-  data_start: wp.array(dtype=wp.float32, ndim=2),
-  data_end: wp.array(dtype=wp.float32, ndim=2),
-  indexer: wp.array(dtype=wp.int32, ndim=2),
-  cumulative_sum: wp.array(dtype=wp.int32, ndim=2),
+  m: Model,
+  d: Data,
 ):
   worldId, i = wp.tid()  # Get the thread ID
 
   # Get the index of the current bounding box
-  idx1 = indexer[worldId, i]
+  idx1 = d.data_indexer[worldId, i]
 
-  end = data_end[worldId, idx1]
-  limit = find_first_greater_than(worldId, data_start, end, i + 1, num_boxes_per_world)
-  limit = wp.min(num_boxes_per_world - 1, limit)
+  end = d.data_end[worldId, idx1]
+  limit = find_first_greater_than(worldId, d.data_start, end, i + 1, m.ngeom)
+  limit = wp.min(m.ngeom - 1, limit)
 
   # Calculate the range of boxes for the sweep and prune process
   count = limit - i
 
   # Store the cumulative sum for the current box
-  cumulative_sum[worldId, i] = count
+  d.ranges[worldId, i] = count
 
 
 @wp.func
@@ -355,54 +266,37 @@ def find_indices(
 
 @wp.kernel
 def broadphase_sweep_and_prune_kernel(
-  num_threads: int,
-  length: int,
-  num_boxes_per_world: int,
-  max_num_overlaps_per_world: int,
-  cumulative_sum: wp.array(dtype=wp.int32, ndim=1),
-  data_indexer: wp.array(dtype=wp.int32, ndim=2),
-  data_result: wp.array(dtype=wp.vec2i, ndim=2),
-  result_count: wp.array(dtype=wp.int32, ndim=1),
-  boxes_sorted: wp.array(dtype=wp.vec3, ndim=3),
-  # The following are used to filter the broadphase pairs
-  # filter_parent: bool,
-  nexclude: int,
-  body_parentid: wp.array(dtype=int),
-  body_weldid: wp.array(dtype=int),
-  body_contype: wp.array(dtype=int),
-  body_conaffinity: wp.array(dtype=int),
-  # body_has_plane: wp.array(dtype=bool),
-  exclude_signature: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
+  m: Model,
+  d: Data,
 ):
   threadId = wp.tid()  # Get thread ID
-  if length > 0:
-    total_num_work_packages = cumulative_sum[length - 1]
+  if d.cumulative_sum.shape[0] > 0:
+    total_num_work_packages = d.cumulative_sum[d.cumulative_sum.shape[0] - 1]
   else:
     total_num_work_packages = 0
 
   while threadId < total_num_work_packages:
     # Get indices for current and next box pair
-    ij = find_indices(threadId, cumulative_sum, length)
+    ij = find_indices(threadId, d.cumulative_sum, d.cumulative_sum.shape[0])
     i = ij.x
     j = ij.y
 
-    worldId = i // num_boxes_per_world
-    i = i % num_boxes_per_world
+    worldId = i // m.ngeom
+    i = i % m.ngeom
 
-    # world_id_j = j // num_boxes_per_world
-    j = j % num_boxes_per_world
+    # world_id_j = j // m.ngeom
+    j = j % m.ngeom
 
     # assert worldId == world_id_j, "Only boxes in the same world can be compared"
     # TODO: Remove print if debugging is done
     # if worldId != world_id_j:
     #     print("Only boxes in the same world can be compared")
 
-    idx1 = data_indexer[worldId, i]
+    idx1 = d.data_indexer[worldId, i]
 
     # box1 = boxes_sorted[worldId, i]
 
-    idx2 = data_indexer[worldId, j]
+    idx2 = d.data_indexer[worldId, j]
 
     body1 = wp.min(idx1, idx2)
     body2 = wp.max(idx1, idx2)
@@ -441,23 +335,23 @@ def broadphase_sweep_and_prune_kernel(
     # Collision filtering end
     """
 
-    body1 = geom_bodyid[i]
-    body2 = geom_bodyid[j]
+    body1 = m.geom_bodyid[i]
+    body2 = m.geom_bodyid[j]
     if body1 == body2:
       threadId += num_threads
       continue
 
     # Check if the boxes overlap
-    if body1 != body2 and overlap(worldId, i, j, boxes_sorted):
+    if body1 != body2 and overlap(worldId, i, j, d.boxes_sorted):
       # if not (body_has_plane[body1] or body_has_plane[body2]):
       #  return
 
       pair = wp.vec2i(body1, body2)
 
-      id = wp.atomic_add(result_count, worldId, 1)
+      id = wp.atomic_add(d.result_count, worldId, 1)
 
-      if id < max_num_overlaps_per_world:
-        data_result[worldId, id] = pair
+      if id < d.max_num_overlaps_per_world:
+        d.broadphase_pairs[worldId, id] = pair
 
     threadId += num_threads
 
@@ -534,29 +428,24 @@ def get_contact_solver_params_kernel(
 
 @wp.kernel
 def group_contacts_by_type_kernel(
-  geom_type: wp.array(dtype=wp.int32),
-  bp_geom_pair: wp.array(dtype=wp.vec2i, ndim=2),
-  bp_geom_pair_count: wp.array(dtype=wp.int32),
-  # outputs
-  type_pair_env_id: wp.array(dtype=wp.int32, ndim=2),
-  type_pair_geom_id: wp.array(dtype=wp.vec2i, ndim=2),
-  type_pair_count: wp.array(dtype=wp.int32),
+  m: Model,
+  d: Data,
 ):
   worldid, tid = wp.tid()
-  if tid >= bp_geom_pair_count[worldid]:
+  if tid >= d.result_count[worldid]:
     return
 
-  geoms = bp_geom_pair[worldid, tid]
+  geoms = d.broadphase_pairs[worldid, tid]
   geom1 = geoms[0]
   geom2 = geoms[1]
 
-  type1 = geom_type[geom1]
-  type2 = geom_type[geom2]
+  type1 = m.geom_type[geom1]
+  type2 = m.geom_type[geom2]
   key = group_key(type1, type2)
 
-  n_type_pair = wp.atomic_add(type_pair_count, key, 1)
-  type_pair_env_id[key, n_type_pair] = worldid
-  type_pair_geom_id[key, n_type_pair] = wp.vec2i(geom1, geom2)
+  n_type_pair = wp.atomic_add(d.narrowphase_candidate_group_count, key, 1)
+  d.narrowphase_candidate_worldid[key, n_type_pair] = worldid
+  d.narrowphase_candidate_geom[key, n_type_pair] = wp.vec2i(geom1, geom2)
 
 
 def broadphase_sweep_and_prune(m: Model, d: Data):
@@ -572,15 +461,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[
-      d.dyn_geom_aabb,
-      d.data_start,
-      d.data_end,
-      d.data_indexer,
-      direction,
-      abs_dir,
-      d.result_count,
-    ],
+    inputs=[m, d],
   )
   wp.synchronize()
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
@@ -645,7 +526,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[d.dyn_geom_aabb, d.boxes_sorted, d.data_indexer],
+    inputs=[m, d],
   )
   wp.synchronize()
 
@@ -653,13 +534,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=broadphase_sweep_and_prune_prepare_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[
-      m.ngeom,
-      d.data_start,
-      d.data_end,
-      d.data_indexer,
-      d.ranges,
-    ],
+    inputs=[m, d],
   )
   wp.synchronize()
   # The scan (scan = cumulative sum, either inclusive or exclusive depending on the last argument) is used for load balancing among the threads
@@ -671,26 +546,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=broadphase_sweep_and_prune_kernel,
     dim=num_sweep_threads,
-    inputs=[
-      num_sweep_threads,
-      d.nworld * m.ngeom,
-      m.ngeom,
-      d.max_num_overlaps_per_world,
-      d.cumulative_sum,
-      d.data_indexer,
-      d.broadphase_pairs,
-      d.result_count,
-      d.boxes_sorted,
-      # filter_parent,
-      m.nexclude,
-      m.body_parentid,
-      m.body_weldid,
-      m.body_contype,
-      m.body_conaffinity,
-      # body_has_plane,
-      m.exclude_signature,
-      m.geom_bodyid,
-    ],
+    inputs=[m, d],
   )
   wp.synchronize()
 
@@ -718,50 +574,29 @@ def broadphase(m: Model, d: Data):
   # wp.launch(
   #   kernel=get_dyn_body_aamm,
   #   dim=(d.nworld, m.nbody),
-  #   inputs=[
-  #     m.body_geomnum,
-  #     m.body_geomadr,
-  #     m.geom_margin,
-  #     d.geom_xpos,
-  #     m.geom_rbound,
-  #   ],
-  #   outputs=[
-  #     d.dyn_body_aamm,
-  #   ],
+  #   inputs=[m, d],
+  # )
 
   print("get_dyn_geom_aabb")
   wp.launch(
     kernel=get_dyn_geom_aabb,
     dim=(d.nworld, m.ngeom),
-    inputs=[d.geom_xpos, d.geom_xmat, m.geom_aabb],
-    outputs=[
-      d.dyn_geom_aabb,
-    ],
+    inputs=[m, d],
   )
   wp.synchronize()
 
   broadphase_sweep_and_prune(m, d)
 
-
 def group_contacts_by_type(m: Model, d: Data):
   # initialize type pair count & group contacts by type
 
-  # Initialize type pair count
+  # Initialize type pair count 
   d.narrowphase_candidate_group_count.zero_()
 
   wp.launch(
     group_contacts_by_type_kernel,
     dim=(d.nworld, d.max_num_overlaps_per_world),
-    inputs=[
-      m.geom_type,
-      d.broadphase_pairs,
-      d.result_count,
-    ],
-    outputs=[
-      d.narrowphase_candidate_worldid,
-      d.narrowphase_candidate_geom,
-      d.narrowphase_candidate_group_count,
-    ],
+    inputs=[m, d],
   )
 
   # Initialize the env contact counter
@@ -772,24 +607,7 @@ def get_contact_solver_params(m: Model, d: Data):
   wp.launch(
     get_contact_solver_params_kernel,
     dim=[d.nconmax],
-    inputs=[
-      d.contact.geom,
-      m.geom_priority,
-      m.geom_solmix,
-      m.geom_friction,
-      m.geom_solref,
-      m.geom_solimp,
-      m.geom_margin,
-      m.geom_gap,
-      d.ncon,
-    ],
-    outputs=[
-      d.contact.includemargin,
-      d.contact.friction,
-      d.contact.solref,
-      d.contact.solreffriction,
-      d.contact.solimp,
-    ],
+    inputs=[m, d],
   )
 
   # TODO(team): do we need condim sorting, deepest penetrating contact here?
