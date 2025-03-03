@@ -15,6 +15,9 @@
 
 import warp as wp
 
+from .types import Model
+from .types import Data
+
 # XXX disable backward pass codegen globally for now
 wp.config.enable_backward = False
 
