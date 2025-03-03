@@ -178,6 +178,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.geom_friction = wp.array(mjm.geom_friction, dtype=wp.float32, ndim=2)
   m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
   m.geom_gap = wp.array(mjm.geom_gap, dtype=wp.float32, ndim=1)
+  m.geom_aabb = wp.array(mjm.geom_aabb, dtype=wp.vec3, ndim=3)
   m.site_pos = wp.array(mjm.site_pos, dtype=wp.vec3, ndim=1)
   m.site_quat = wp.array(mjm.site_quat, dtype=wp.quat, ndim=1)
   m.dof_bodyid = wp.array(mjm.dof_bodyid, dtype=wp.int32, ndim=1)
@@ -203,7 +204,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.actuator_actadr = wp.array(mjm.actuator_actadr, dtype=wp.int32, ndim=1)
   m.actuator_dyntype = wp.array(mjm.actuator_dyntype, dtype=wp.int32, ndim=1)
   m.actuator_dynprm = wp.array(mjm.actuator_dynprm, dtype=types.vec10f, ndim=1)
-  m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
   m.body_geomnum = wp.array(mjm.body_geomnum, dtype=wp.int32, ndim=1)
   m.body_geomadr = wp.array(mjm.body_geomadr, dtype=wp.int32, ndim=1)
   m.geom_rbound = wp.array(mjm.geom_rbound, dtype=wp.float32, ndim=1)
@@ -555,7 +555,7 @@ def put_data(
   d.cumulative_sum = wp.zeros(nworld * mjm.ngeom, dtype=wp.int32)
   segment_indices_list = [i * mjm.ngeom for i in range(nworld + 1)]
   d.segment_indices = wp.array(segment_indices_list, dtype=int)
-  d.dyn_body_aamm = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
+  d.dyn_geom_aabb = wp.zeros((nworld, mjm.ngeom, 2), dtype=wp.vec3)
 
   # internal narrowphase tmp arrays
   ngroups = types.NUM_GEOM_TYPES

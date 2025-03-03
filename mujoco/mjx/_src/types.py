@@ -285,10 +285,10 @@ class Model:
   actuator_dyntype: wp.array(dtype=wp.int32, ndim=1)
   actuator_dynprm: wp.array(dtype=vec10f, ndim=1)
 
-  geom_margin: wp.array(dtype=wp.float32, ndim=1)
   body_geomnum: wp.array(dtype=wp.int32, ndim=1)
   body_geomadr: wp.array(dtype=wp.int32, ndim=1)
   geom_rbound: wp.array(dtype=wp.float32, ndim=2)
+  geom_aabb: wp.array(dtype=wp.vec3, ndim=3)
 
   body_parentid: wp.array(dtype=wp.int32, ndim=1)
   body_weldid: wp.array(dtype=wp.int32, ndim=1)
@@ -396,7 +396,7 @@ class Data:
   ranges: wp.array(dtype=wp.int32, ndim=2)
   cumulative_sum: wp.array(dtype=wp.int32, ndim=1)
   segment_indices: wp.array(dtype=wp.int32, ndim=1)
-  dyn_body_aamm: wp.array(dtype=wp.vec3, ndim=3)
+  dyn_geom_aabb: wp.array(dtype=wp.vec3, ndim=3)
 
   # narrowphase temp arrays
   narrowphase_candidate_worldid: wp.array(dtype=wp.int32, ndim=2)
