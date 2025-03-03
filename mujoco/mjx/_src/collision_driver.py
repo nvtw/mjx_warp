@@ -160,6 +160,88 @@ def get_dyn_body_aamm(
   dyn_body_aamm[env_id, bid, 1] = aamm_max
 
 
+# @wp.struct
+# class Mat3x4:
+#     row0 : wp.vec4
+#     row1 : wp.vec4
+#     row2 : wp.vec4
+
+# @wp.func
+# def xposmat_to_float4(xpos: wp.array(dtype=wp.vec3, ndim=2), xmat: wp.array(dtype=wp.mat33, ndim=2), env_id: int, gid: int) -> Mat3x4:
+#     result = Mat3x4()
+#     pos = xpos[env_id, gid]
+#     m = xmat[env_id, gid]
+#     result.row0 = wp.vec4(m[0, 0], m[0, 1], m[0, 2],
+#                           pos.x)
+#     result.row1 = wp.vec4(m[1, 0], m[1, 1], m[1, 2],
+#                           pos.y)
+#     result.row2 = wp.vec4(m[2, 0], m[2, 1], m[2, 2],
+#                           pos.z)
+#     return result
+
+# @wp.func
+# def transform_point(mat : Mat3x4, pos : wp.vec3)->wp.vec3:
+#     x = wp.dot(wp.vec3(mat.row0[0], mat.row0[1], mat.row0[2]), pos) + mat.row0[3]
+#     y = wp.dot(wp.vec3(mat.row1[0], mat.row1[1], mat.row1[2]), pos) + mat.row1[3]
+#     z = wp.dot(wp.vec3(mat.row2[0], mat.row2[1], mat.row2[2]), pos) + mat.row2[3]
+#     return wp.vec3(x, y, z)
+
+
+@wp.kernel
+def get_dyn_geom_aabb(
+  geom_xpos: wp.array(dtype=wp.vec3, ndim=2),
+  geom_xmat: wp.array(dtype=wp.mat33, ndim=2),
+  geom_aabb: wp.array(dtype=wp.vec3, ndim=3),
+  dyn_aabb: wp.array(dtype=wp.vec3, ndim=3),
+):
+  env_id, gid = wp.tid()
+  # if tid >= nenv * ngeom:
+  #     return
+
+  # env_id = tid // ngeom
+  # gid = tid % ngeom
+
+  pos = geom_xpos[env_id, gid]
+  ori = geom_xmat[env_id, gid]
+
+  # mat = xposmat_to_float4(geom_xpos, geom_xmat, env_id, gid)
+
+  aabb = geom_aabb[
+    env_id, gid, 0
+  ]  # wp.vec3(geom_aabb[gid * 6 + 3], geom_aabb[gid * 6 + 4], geom_aabb[gid * 6 + 5])
+  aabb_pos = geom_aabb[
+    env_id, gid, 1
+  ]  # wp.vec3(geom_aabb[gid * 6], geom_aabb[gid * 6 + 1], geom_aabb[gid * 6 + 2])
+
+  aabb_max = wp.vec3(-1000000000.0, -1000000000.0, -1000000000.0)
+  aabb_min = wp.vec3(1000000000.0, 1000000000.0, 1000000000.0)
+
+  for i in range(8):
+    corner = wp.vec3(aabb.x, aabb.y, aabb.z)
+    if i % 2 == 0:
+      corner.x = -corner.x
+    if (i // 2) % 2 == 0:
+      corner.y = -corner.y
+    if i < 4:
+      corner.z = -corner.z
+    corner_world = (
+      ori * (corner + aabb_pos) + pos
+    )  # transform_point(mat, corner + aabb_pos)
+    aabb_max = wp.max(aabb_max, corner_world)
+    aabb_min = wp.min(aabb_min, corner_world)
+
+  # Write results to output
+  dyn_aabb[env_id, gid, 0] = aabb_min
+  dyn_aabb[env_id, gid, 1] = aabb_max
+
+  # dyn_aabb[tid * 6 + 0] = aabb_min[0]
+  # dyn_aabb[tid * 6 + 1] = aabb_min[1]
+  # dyn_aabb[tid * 6 + 2] = aabb_min[2]
+  # dyn_aabb[tid * 6 + 3] = aabb_max[0]
+  # dyn_aabb[tid * 6 + 4] = aabb_max[1]
+  # dyn_aabb[tid * 6 + 5] = aabb_max[2]
+
+
 @wp.kernel
 def init_kernel(
   contact: Contact,
@@ -348,6 +430,7 @@ def broad_phase_sweep_and_prune_kernel(
   body_conaffinity: wp.array(dtype=int),
   # body_has_plane: wp.array(dtype=bool),
   exclude_signature: wp.array(dtype=int),
+  geom_bodyid: wp.array(dtype=int),
 ):
   threadId = wp.tid()  # Get thread ID
   if length > 0:
@@ -410,6 +493,11 @@ def broad_phase_sweep_and_prune_kernel(
     #     continue
     # Collision filtering end
     """
+
+    body1 = geom_bodyid[i]
+    body2 = geom_bodyid[j]
+    if body1 == body2:
+      continue
 
     # Check if the boxes overlap
     if body1 != body2 and overlap(worldId, i, j, boxes_sorted):
@@ -536,7 +624,7 @@ def broad_phase(m: Model, d: Data):
     kernel=broad_phase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
     inputs=[
-      d.dyn_body_aamm,
+      d.dyn_geom_aabb,
       d.data_start,
       d.data_end,
       d.data_indexer,
@@ -606,7 +694,7 @@ def broad_phase(m: Model, d: Data):
   wp.launch(
     kernel=reorder_bounding_boxes_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[d.dyn_body_aamm, d.boxes_sorted, d.data_indexer],
+    inputs=[d.dyn_geom_aabb, d.boxes_sorted, d.data_indexer],
   )
 
   wp.launch(
@@ -647,6 +735,7 @@ def broad_phase(m: Model, d: Data):
       m.body_conaffinity,
       # body_has_plane,
       m.exclude_signature,
+      d.geom_bodyid,
     ],
   )
 
@@ -672,17 +761,24 @@ def broadphase(m: Model, d: Data):
   # get geom pairs
 
   # generate body AAMMs
+  # wp.launch(
+  #   kernel=get_dyn_body_aamm,
+  #   dim=(d.nworld, m.nbody),
+  #   inputs=[
+  #     m.body_geomnum,
+  #     m.body_geomadr,
+  #     m.geom_margin,
+  #     d.geom_xpos,
+  #     m.geom_rbound,
+  #     d.dyn_body_aamm,
+  #   ],
+  # )
+
+  # get geom AABBs in global frame
   wp.launch(
-    kernel=get_dyn_body_aamm,
-    dim=(d.nworld, m.nbody),
-    inputs=[
-      m.body_geomnum,
-      m.body_geomadr,
-      m.geom_margin,
-      d.geom_xpos,
-      m.geom_rbound,
-      d.dyn_body_aamm,
-    ],
+    kernel=get_dyn_geom_aabb,
+    dim=(d.nworld, m.ngeom),
+    inputs=[d.geom_xpos, d.geom_xmat, d.geom_aabb, d.dyn_geom_aabb],
   )
 
   broad_phase(m, d)
