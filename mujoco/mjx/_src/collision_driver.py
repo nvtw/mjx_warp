@@ -545,5 +545,9 @@ def collision(m: Model, d: Data):
     from .collision_functions import narrowphase
   else:
     from .collision_convex import narrowphase
+
+  # TODO(team): should we limit per-world contact nubmers?
+  # TODO(team): we should reject far-away contacts in the narrowphase instead of constraint
+  #             partitioning because we can move some pressure of the atomics
   narrowphase(m, d)
   get_contact_solver_params(m, d)
