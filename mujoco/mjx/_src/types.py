@@ -288,7 +288,7 @@ class Model:
   body_geomnum: wp.array(dtype=wp.int32, ndim=1)
   body_geomadr: wp.array(dtype=wp.int32, ndim=1)
   geom_rbound: wp.array(dtype=wp.float32, ndim=2)
-  geom_aabb: wp.array(dtype=wp.vec3, ndim=3)
+  #geom_aabb: wp.array(dtype=wp.vec3, ndim=3)
 
   body_parentid: wp.array(dtype=wp.int32, ndim=1)
   body_weldid: wp.array(dtype=wp.int32, ndim=1)

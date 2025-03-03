@@ -735,7 +735,7 @@ def broadphase(m: Model, d: Data):
   wp.launch(
     kernel=get_dyn_geom_aabb,
     dim=(d.nworld, m.ngeom),
-    inputs=[d.geom_xpos, d.geom_xmat, d.geom_aabb],
+    inputs=[d.geom_xpos, d.geom_xmat, d.dyn_geom_aabb],
     outputs=[
       d.dyn_geom_aabb,
     ],

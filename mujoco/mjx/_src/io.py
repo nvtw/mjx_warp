@@ -178,7 +178,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.geom_friction = wp.array(mjm.geom_friction, dtype=wp.float32, ndim=2)
   m.geom_margin = wp.array(mjm.geom_margin, dtype=wp.float32, ndim=1)
   m.geom_gap = wp.array(mjm.geom_gap, dtype=wp.float32, ndim=1)
-  m.geom_aabb = wp.array(mjm.geom_aabb, dtype=wp.vec3, ndim=3)
+  #m.geom_aabb = wp.array(mjm.geom_aabb, dtype=wp.vec3, ndim=3)
   m.site_pos = wp.array(mjm.site_pos, dtype=wp.vec3, ndim=1)
   m.site_quat = wp.array(mjm.site_quat, dtype=wp.quat, ndim=1)
   m.dof_bodyid = wp.array(mjm.dof_bodyid, dtype=wp.int32, ndim=1)
