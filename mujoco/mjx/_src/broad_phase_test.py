@@ -234,6 +234,30 @@ class BroadPhaseTest(parameterized.TestCase):
         )
 
 
+  def test_broadphase_2(self):
+    """Tests the broadphase"""
+
+    # create a model with a few intersecting bodies
+    _MODEL = """
+    <mujoco>
+      <worldbody>
+        <geom size="40 40 40" type="plane"/>
+        <body pos="0 0 0.7" euler="0 0 0">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/>
+        </body>
+        <body pos="1.5 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+
+    # run the BP
+
+    # check that the intersections are valid
+
 if __name__ == "__main__":
   wp.init()
   absltest.main()
