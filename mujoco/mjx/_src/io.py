@@ -369,7 +369,7 @@ def put_data(
   if nworld * mjd.nefc > njmax:
     raise ValueError("nworld * nefc > njmax")
 
-  d.ncon = wp.array(mjd.ncon, dtype=wp.int32, ndim=1)
+  d.ncon = wp.array([mjd.ncon], dtype=wp.int32, ndim=1)
   d.nl = mjd.nl
   d.nefc = wp.zeros(1, dtype=wp.int32)
   d.time = mjd.time
@@ -560,10 +560,10 @@ def put_data(
   # internal narrowphase tmp arrays
   ngroups = types.NUM_GEOM_TYPES
   d.narrowphase_candidate_worldid = wp.empty(
-    (ngroups, d.ncon * nworld), dtype=wp.int32, ndim=2
+    (ngroups, d.max_num_overlaps_per_world * nworld), dtype=wp.int32, ndim=2
   )
   d.narrowphase_candidate_geom = wp.empty(
-    (ngroups, d.ncon * nworld), dtype=wp.vec2i, ndim=2
+    (ngroups, d.max_num_overlaps_per_world * nworld), dtype=wp.vec2i, ndim=2
   )
   d.narrowphase_candidate_group_count = wp.zeros(ngroups, dtype=wp.int32, ndim=1)
 
