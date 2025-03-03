@@ -239,29 +239,47 @@ class BroadPhaseTest(parameterized.TestCase):
         )
 
 
-  def test_broadphase_2(self):
+  def test_broadphase_simple(self):
     """Tests the broadphase"""
 
     # create a model with a few intersecting bodies
     _MODEL = """
     <mujoco>
       <worldbody>
-        <geom size="40 40 40" type="plane"/>
+        <geom size="40 40 40" type="plane"/>   <!- (0) intersects with nothing -->
         <body pos="0 0 0.7">
           <freejoint/>
-          <geom size="0.5 0.5 0.5" type="box"/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (1) intersects with 2 -->
         </body>
         <body pos="0.1 0 0.7">
           <freejoint/>
-          <geom size="0.5 0.5 0.5" type="box"/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (2) intersects with 1 -->
         </body>
+
+        <body pos="1.8 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (3) intersects with 4  -->
+        </body>
+        <body pos="1.6 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (4) intersects with 3 -->
+        </body>
+
+        <body pos="0 0 1.8">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (5) intersects with 7 -->
+          <geom size="0.5 0.5 0.5" type="box" pos="0 0 -1"/> <!- (6) intersects with 7, 2, 1 -->
+        </body>
+        <body pos="0 0.5 1.2">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (7) intersects with 5 -->
+        </body>
+        
       </worldbody>
     </mujoco>
     """
 
-    # run the BP
     m = mujoco.MjModel.from_xml_string(_MODEL)
-    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
 
@@ -270,9 +288,8 @@ class BroadPhaseTest(parameterized.TestCase):
 
     mjx.broadphase(mx, dx)
 
-    print(dx.result_count)
+    assert(dx.result_count.numpy()[0] == 9)
 
-    # check that the intersections are valid
 
 if __name__ == "__main__":
   wp.init()

@@ -369,8 +369,9 @@ def get_contact_solver_params_kernel(
   if tid >= n_contact_pts:
     return
 
-  g1 = d.narrowphase_candidate_geom[tid, 0]
-  g2 = d.narrowphase_candidate_geom[tid, 1]
+  geoms = d.contact.geom[tid]
+  g1 = geoms.x
+  g2 = geoms.y
 
   margin = wp.max(m.geom_margin[g1], m.geom_margin[g2])
   gap = wp.max(m.geom_gap[g1], m.geom_gap[g2])
@@ -411,7 +412,7 @@ def get_contact_solver_params_kernel(
 
   for i in range(MJ_NIMP):
     d.contact.solimp[tid][i] = (
-      mix * d.contact.geom_solimp[g1, i] + (1.0 - mix) * d.contact.geom_solimp[g2, i]
+      mix * m.geom_solimp[g1, i] + (1.0 - mix) * m.geom_solimp[g2, i]
     )  # solimp_[i]
 
 
