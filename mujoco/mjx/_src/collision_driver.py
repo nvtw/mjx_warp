@@ -76,24 +76,6 @@ def get_dyn_geom_aabb(
   d.dyn_geom_aabb[env_id, gid, 1] = aabb.max
 
 
-@wp.kernel
-def init_contact_kernel(
-  contact: Contact,
-):
-  contact_id = wp.tid()
-
-  contact.dist[contact_id] = 1e12
-  contact.pos[contact_id] = wp.vec3(0.0)
-  contact.frame[contact_id] = wp.mat33f(0.0)
-  contact.geom[contact_id] = wp.vec2i(-1, -1)
-  contact.includemargin[contact_id] = 0.0
-  contact.solref[contact_id].x = 0.02
-  contact.solref[contact_id].y = 1.0
-  contact.solimp[contact_id] = vec5(0.9, 0.95, 0.001, 0.5, 2.0)
-  contact.friction[contact_id] = vec5(1.0, 1.0, 0.005, 0.0001, 0.0001)
-  contact.solreffriction[contact_id] = wp.vec2(0.0, 0.0)
-
-
 @wp.func
 def overlap(
   world_id: int,
@@ -139,12 +121,12 @@ def broadphase_project_boxes_onto_sweep_direction_kernel(
   f = center - d_val
 
   # Store results in the data arrays
-  d.data_start[worldId, i] = f
-  d.data_end[worldId, i] = center + d_val
-  d.data_indexer[worldId, i] = i
+  d.box_projections_lower[worldId, i] = f
+  d.box_projections_upper[worldId, i] = center + d_val
+  d.box_sorting_indexer[worldId, i] = i
 
   if i == 0:
-    d.result_count[worldId] = 0  # Initialize result count to 0
+    d.broadphase_result_count[worldId] = 0  # Initialize result count to 0
 
 
 @wp.kernel
@@ -154,7 +136,7 @@ def reorder_bounding_boxes_kernel(
   worldId, i = wp.tid()
 
   # Get the index from the data indexer
-  mapped = d.data_indexer[worldId, i]
+  mapped = d.box_sorting_indexer[worldId, i]
 
   # Get the box from the original boxes array
   box_min = d.dyn_geom_aabb[worldId, mapped, 0]
@@ -190,10 +172,10 @@ def broadphase_sweep_and_prune_prepare_kernel(
   worldId, i = wp.tid()  # Get the thread ID
 
   # Get the index of the current bounding box
-  idx1 = d.data_indexer[worldId, i]
+  idx1 = d.box_sorting_indexer[worldId, i]
 
-  end = d.data_end[worldId, idx1]
-  limit = find_first_greater_than(worldId, d.data_start, end, i + 1, m.ngeom)
+  end = d.box_projections_upper[worldId, idx1]
+  limit = find_first_greater_than(worldId, d.box_projections_lower, end, i + 1, m.ngeom)
   limit = wp.min(m.ngeom - 1, limit)
 
   # Calculate the range of boxes for the sweep and prune process
@@ -255,8 +237,8 @@ def broadphase_sweep_and_prune_kernel(
     j = j % m.ngeom
 
     # geom index
-    idx1 = d.data_indexer[worldId, i]
-    idx2 = d.data_indexer[worldId, j]
+    idx1 = d.box_sorting_indexer[worldId, i]
+    idx2 = d.box_sorting_indexer[worldId, j]
 
     # body index
     body1 = m.geom_bodyid[idx1]
@@ -321,9 +303,9 @@ def broadphase_sweep_and_prune_kernel(
     """
     # Check if the boxes overlap
     if overlap(worldId, i, j, d.boxes_sorted):
-      pair = wp.vec2i(body1, body2)
+      pair = wp.vec2i(wp.min(idx1, idx2), wp.max(idx1, idx2))
 
-      id = wp.atomic_add(d.result_count, worldId, 1)
+      id = wp.atomic_add(d.broadphase_result_count, worldId, 1)
 
       if id < d.max_num_overlaps_per_world:
         d.broadphase_pairs[worldId, id] = pair
@@ -358,31 +340,16 @@ def get_contact_solver_params_kernel(
   p1 = m.geom_priority[g1]
   p2 = m.geom_priority[g2]
   mix = where(p1 == p2, mix, where(p1 > p2, 1.0, 0.0))
-  is_standard = (m.geom_solref[g1, 0] > 0) and (m.geom_solref[g2, 0] > 0)
 
-  solref_ = wp.vec(0.0, length=MJ_NREF, dtype=wp.float32)
-  for i in range(MJ_NREF):
-    solref_[i] = mix * m.geom_solref[g1, i] + (1.0 - mix) * m.geom_solref[g2, i]
-    solref_[i] = where(
-      is_standard, solref_[i], wp.min(m.geom_solref[g1, i], m.geom_solref[g2, i])
-    )
-
-  friction_ = wp.vec3(0.0, 0.0, 0.0)
-  for i in range(3):
-    friction_[i] = wp.max(m.geom_friction[g1, i], m.geom_friction[g2, i])
-
-  friction5 = vec5(friction_[0], friction_[0], friction_[1], friction_[2], friction_[2])
-
+  if m.geom_solref[g1].x > 0.0 and m.geom_solref[g2].x > 0.0:
+    d.contact.solref[tid] = mix * m.geom_solref[g1] + (1.0 - mix) * m.geom_solref[g2]
+  else:
+    d.contact.solref[tid] = wp.min(m.geom_solref[g1], m.geom_solref[g2])
   d.contact.includemargin[tid] = margin - gap
+  friction_ = wp.max(m.geom_friction[g1], m.geom_friction[g2])
+  friction5 = vec5(friction_[0], friction_[0], friction_[1], friction_[2], friction_[2])
   d.contact.friction[tid] = friction5
-
-  for i in range(2):
-    d.contact.solref[tid][i] = solref_[i]
-
-  for i in range(MJ_NIMP):
-    d.contact.solimp[tid][i] = (
-      mix * m.geom_solimp[g1, i] + (1.0 - mix) * m.geom_solimp[g2, i]
-    )  # solimp_[i]
+  d.contact.solimp[tid] = mix * m.geom_solimp[g1] + (1.0 - mix) * m.geom_solimp[g2]
 
 
 @wp.kernel
@@ -391,7 +358,7 @@ def group_contacts_by_type_kernel(
   d: Data,
 ):
   worldid, tid = wp.tid()
-  if tid >= d.result_count[worldid]:
+  if tid >= d.broadphase_result_count[worldid]:
     return
 
   geoms = d.broadphase_pairs[worldid, tid]
@@ -419,7 +386,10 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
   if segmented_sort_available:
     wp.utils.segmented_sort_pairs(
-      d.data_start, d.data_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
+      d.box_projections_lower,
+      d.box_sorting_indexer,
+      m.ngeom * d.nworld,
+      d.segment_indices,
     )
   else:
     # Sort each world's segment separately
@@ -427,45 +397,47 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       start_idx = world_id * m.ngeom
 
       # Create temporary arrays for sorting
-      temp_data_start = wp.zeros(
+      temp_box_projections_lower = wp.zeros(
         m.ngeom * 2,
-        dtype=d.data_start.dtype,
+        dtype=d.box_projections_lower.dtype,
       )
-      temp_data_indexer = wp.zeros(
+      temp_box_sorting_indexer = wp.zeros(
         m.ngeom * 2,
-        dtype=d.data_indexer.dtype,
+        dtype=d.box_sorting_indexer.dtype,
       )
 
       # Copy data to temporary arrays
       wp.copy(
-        temp_data_start,
-        d.data_start,
+        temp_box_projections_lower,
+        d.box_projections_lower,
         0,
         start_idx,
         m.ngeom,
       )
       wp.copy(
-        temp_data_indexer,
-        d.data_indexer,
+        temp_box_sorting_indexer,
+        d.box_sorting_indexer,
         0,
         start_idx,
         m.ngeom,
       )
 
       # Sort the temporary arrays
-      wp.utils.radix_sort_pairs(temp_data_start, temp_data_indexer, m.ngeom)
+      wp.utils.radix_sort_pairs(
+        temp_box_projections_lower, temp_box_sorting_indexer, m.ngeom
+      )
 
       # Copy sorted data back
       wp.copy(
-        d.data_start,
-        temp_data_start,
+        d.box_projections_lower,
+        temp_box_projections_lower,
         start_idx,
         0,
         m.ngeom,
       )
       wp.copy(
-        d.data_indexer,
-        temp_data_indexer,
+        d.box_sorting_indexer,
+        temp_box_sorting_indexer,
         start_idx,
         0,
         m.ngeom,
@@ -554,7 +526,6 @@ def collision(m: Model, d: Data):
   # which is further based on the CUDA code here:
   # https://github.com/btaba/mujoco/blob/warp-collisions/mjx/mujoco/mjx/_src/cuda/engine_collision_driver.cu.cc#L458-L583
 
-  init_contact(m, d)
   broadphase(m, d)
   # filtering?
   group_contacts_by_type(m, d)
