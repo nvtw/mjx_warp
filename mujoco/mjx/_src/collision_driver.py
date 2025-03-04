@@ -419,7 +419,11 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
   if segmented_sort_available:
     wp.utils.segmented_sort_pairs(
-      d.box_projections_lower, d.box_sorting_indexer, m.ngeom * d.nworld, d.segment_indices, d.nworld
+      d.box_projections_lower,
+      d.box_sorting_indexer,
+      m.ngeom * d.nworld,
+      d.segment_indices,
+      d.nworld,
     )
   else:
     # Sort each world's segment separately
@@ -453,7 +457,9 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       )
 
       # Sort the temporary arrays
-      wp.utils.radix_sort_pairs(temp_box_projections_lower, temp_box_sorting_indexer, m.ngeom)
+      wp.utils.radix_sort_pairs(
+        temp_box_projections_lower, temp_box_sorting_indexer, m.ngeom
+      )
 
       # Copy sorted data back
       wp.copy(
