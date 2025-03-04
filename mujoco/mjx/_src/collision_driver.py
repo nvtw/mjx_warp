@@ -76,24 +76,6 @@ def get_dyn_geom_aabb(
   d.dyn_geom_aabb[env_id, gid, 1] = aabb.max
 
 
-@wp.kernel
-def init_contact_kernel(
-  contact: Contact,
-):
-  contact_id = wp.tid()
-
-  contact.dist[contact_id] = 1e12
-  contact.pos[contact_id] = wp.vec3(0.0)
-  contact.frame[contact_id] = wp.mat33f(0.0)
-  contact.geom[contact_id] = wp.vec2i(-1, -1)
-  contact.includemargin[contact_id] = 0.0
-  contact.solref[contact_id].x = 0.02
-  contact.solref[contact_id].y = 1.0
-  contact.solimp[contact_id] = vec5(0.9, 0.95, 0.001, 0.5, 2.0)
-  contact.friction[contact_id] = vec5(1.0, 1.0, 0.005, 0.0001, 0.0001)
-  contact.solreffriction[contact_id] = wp.vec2(0.0, 0.0)
-
-
 @wp.func
 def overlap(
   world_id: int,
@@ -544,7 +526,6 @@ def collision(m: Model, d: Data):
   # which is further based on the CUDA code here:
   # https://github.com/btaba/mujoco/blob/warp-collisions/mjx/mujoco/mjx/_src/cuda/engine_collision_driver.cu.cc#L458-L583
 
-  init_contact(m, d)
   broadphase(m, d)
   # filtering?
   group_contacts_by_type(m, d)
