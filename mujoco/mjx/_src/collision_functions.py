@@ -18,9 +18,9 @@ import warp as wp
 from .types import Model
 from .types import Data
 from .types import GeomType
-from .types import NUM_GEOM_TYPES
 from .math import make_frame
 from .math import normalize_with_norm
+from .support import group_key
 from .support import mat33_from_cols
 
 
@@ -69,25 +69,24 @@ class GeomBox:
 
 
 @wp.struct
-class GeomConvex:
+class GeomMesh:
   pos: wp.vec3
   rot: wp.mat33
-  vert_offset: int
-  vert_count: int
+  vertadr: int
+  vertnum: int
 
 
 def get_info(t):
   @wp.func
   def _get_info(
     gid: int,
-    dataid: int,
+    m: Model,
     geom_xpos: wp.array(dtype=wp.vec3),
     geom_xmat: wp.array(dtype=wp.mat33),
-    size: wp.vec3,
-    convex_vert_offset: wp.array(dtype=int),
   ):
     pos = geom_xpos[gid]
     rot = geom_xmat[gid]
+    size = m.geom_size[gid]
     if wp.static(t == GeomType.SPHERE.value):
       sphere = GeomSphere()
       sphere.pos = pos
@@ -127,16 +126,17 @@ def get_info(t):
       cylinder.halfsize = size[1]
       return cylinder
     elif wp.static(t == GeomType.MESH.value):
-      convex = GeomConvex()
-      convex.pos = pos
-      convex.rot = rot
-      if convex_vert_offset and dataid >= 0:
-        convex.vert_offset = convex_vert_offset[dataid]
-        convex.vert_count = convex_vert_offset[dataid + 1] - convex.vert_offset
+      mesh = GeomMesh()
+      mesh.pos = pos
+      mesh.rot = rot
+      dataid = m.geom_dataid[gid]
+      if dataid >= 0:
+        mesh.vertadr = m.mesh_vertadr[dataid]
+        mesh.vertnum = m.mesh_vertnum[dataid]
       else:
-        convex.vert_offset = 0
-        convex.vert_count = 0
-      return convex
+        mesh.vertadr = 0
+        mesh.vertnum = 0
+      return mesh
     else:
       wp.static(RuntimeError("Unsupported type", t))
 
@@ -236,21 +236,20 @@ def create_collision_function_kernel(type1, type2):
     geoms = d.narrowphase_candidate_geom[key, tid]
     worldid = d.narrowphase_candidate_worldid[key, tid]
 
+    g1 = geoms[0]
+    g2 = geoms[1]
+
     geom1 = wp.static(get_info(type1))(
-      geoms[0],
-      worldid,
-      d.geom_xpos[worldid],
-      d.geom_xmat[worldid],
-      m.geom_size[worldid],
-      m.convex_vert_offset,
+      g1,
+      m,
+      d.geom_xpos[g1],
+      d.geom_xmat[g1],
     )
     geom2 = wp.static(get_info(type2))(
-      geoms[1],
-      worldid,
-      d.geom_xpos[worldid],
-      d.geom_xmat[worldid],
-      m.geom_size[worldid],
-      m.convex_vert_offset,
+      g2,
+      m,
+      d.geom_xpos[g2],
+      d.geom_xmat[g2],
     )
 
     wp.static(_collision_functions[(type1, type2)])(geom1, geom2, worldid, d)
@@ -258,161 +257,8 @@ def create_collision_function_kernel(type1, type2):
   return _collision_function_kernel
 
 
-@wp.kernel
-def plane_convex_kernel(m: Model, d: Data, group_key: int):
-  """Calculates contacts between a plane and a convex object."""
-  tid = wp.tid()
-  num_candidate_contacts = d.narrowphase_candidate_group_count[group_key]
-  if tid >= num_candidate_contacts:
-    return
-
-  geoms = d.narrowphase_candidate_geom[group_key, tid]
-  worldid = d.narrowphase_candidate_worldid[group_key, tid]
-
-  # plane is always first, convex could be box/mesh.
-  plane_geom = geoms[0]
-  convex_geom = geoms[1]
-
-  convex_type = m.geom_type[convex_geom]
-  # if convex_type == wp.static(GeomType.BOX.value):
-  #  pass # box-specific stuff - many things can be hardcoded here
-  # else:
-  #  pass # mesh-specific stuff
-
-  # if contact
-  index = wp.atomic_add(d.ncon, 0, 1)
-  # d.contact.dist[index] = dist
-  # d.contact.pos[index] = pos
-  # d.contact.frame[index] = frame
-  # d.contact.worldid[index] = worldid
-
-
-def plane_capsule(m: Model, d: Data, group_key: int):
-  pass
-
-
-def plane_ellipsoid(m: Model, d: Data, group_key: int):
-  pass
-
-
-def plane_cylinder(m: Model, d: Data, group_key: int):
-  pass
-
-
-def plane_convex(m: Model, d: Data, group_key: int):
-  wp.launch(
-    kernel=plane_convex_kernel,
-    dim=(d.nconmax),
-    inputs=[m, d, group_key],
-  )
-
-
-def hfield_sphere(m: Model, d: Data, group_key: int):
-  pass
-
-
-def hfield_capsule(m: Model, d: Data, group_key: int):
-  pass
-
-
-def hfield_convex(m: Model, d: Data, group_key: int):
-  pass
-
-
-def sphere_sphere(m: Model, d: Data, group_key: int):
-  pass
-
-
-def sphere_capsule(m: Model, d: Data, group_key: int):
-  pass
-
-
-def sphere_cylinder(m: Model, d: Data, group_key: int):
-  pass
-
-
-def sphere_ellipsoid(m: Model, d: Data, group_key: int):
-  pass
-
-
-def sphere_convex(m: Model, d: Data, group_key: int):
-  pass
-
-
-def capsule_capsule(m: Model, d: Data, group_key: int):
-  pass
-
-
-def capsule_convex(m: Model, d: Data, group_key: int):
-  pass
-
-
-def capsule_ellipsoid(m: Model, d: Data, group_key: int):
-  pass
-
-
-def capsule_cylinder(m: Model, d: Data, group_key: int):
-  pass
-
-
-def ellipsoid_ellipsoid(m: Model, d: Data, group_key: int):
-  pass
-
-
-def ellipsoid_cylinder(m: Model, d: Data, group_key: int):
-  pass
-
-
-def cylinder_cylinder(m: Model, d: Data, group_key: int):
-  pass
-
-
-def box_box(m: Model, d: Data, group_key: int):
-  pass
-
-
-def convex_convex(m: Model, d: Data, group_key: int):
-  pass
-
-
-@wp.func
-def group_key(type1: wp.int32, type2: wp.int32) -> wp.int32:
-  return type1 + type2 * NUM_GEOM_TYPES
-
-
-# same order as in MJX - collision function and group key.
-# _COLLISION_FUNCS = [
-#   (plane_sphere, group_key(GeomType.PLANE.value, GeomType.SPHERE.value)),
-#   (plane_capsule, group_key(GeomType.PLANE.value, GeomType.CAPSULE.value)),
-#   (plane_convex, group_key(GeomType.PLANE.value, GeomType.BOX.value)),
-#   (plane_ellipsoid, group_key(GeomType.PLANE.value, GeomType.ELLIPSOID.value)),
-#   (plane_cylinder, group_key(GeomType.PLANE.value, GeomType.CYLINDER.value)),
-#   (plane_convex, group_key(GeomType.PLANE.value, GeomType.MESH.value)),
-#   (hfield_sphere, group_key(GeomType.HFIELD.value, GeomType.SPHERE.value)),
-#   (hfield_capsule, group_key(GeomType.HFIELD.value, GeomType.CAPSULE.value)),
-#   (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.BOX.value)),
-#   (hfield_convex, group_key(GeomType.HFIELD.value, GeomType.MESH.value)),
-#   (sphere_sphere, group_key(GeomType.SPHERE.value, GeomType.SPHERE.value)),
-#   (sphere_capsule, group_key(GeomType.SPHERE.value, GeomType.CAPSULE.value)),
-#   (sphere_cylinder, group_key(GeomType.SPHERE.value, GeomType.CYLINDER.value)),
-#   (sphere_ellipsoid, group_key(GeomType.SPHERE.value, GeomType.ELLIPSOID.value)),
-#   (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.BOX.value)),
-#   (sphere_convex, group_key(GeomType.SPHERE.value, GeomType.MESH.value)),
-#   (capsule_capsule, group_key(GeomType.CAPSULE.value, GeomType.CAPSULE.value)),
-#   (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.BOX.value)),
-#   (capsule_ellipsoid, group_key(GeomType.CAPSULE.value, GeomType.ELLIPSOID.value)),
-#   (capsule_cylinder, group_key(GeomType.CAPSULE.value, GeomType.CYLINDER.value)),
-#   (capsule_convex, group_key(GeomType.CAPSULE.value, GeomType.MESH.value)),
-#   (ellipsoid_ellipsoid, group_key(GeomType.ELLIPSOID.value, GeomType.ELLIPSOID.value)),
-#   (ellipsoid_cylinder, group_key(GeomType.ELLIPSOID.value, GeomType.CYLINDER.value)),
-#   (cylinder_cylinder, group_key(GeomType.CYLINDER.value, GeomType.CYLINDER.value)),
-#   (box_box, group_key(GeomType.BOX.value, GeomType.BOX.value)),
-#   (convex_convex, group_key(GeomType.BOX.value, GeomType.MESH.value)),
-#   (convex_convex, group_key(GeomType.MESH.value, GeomType.MESH.value)),
-# ]
-
-
 _collision_kernels = {}
+
 
 def narrowphase(m: Model, d: Data):
   # we need to figure out how to keep the overhead of this small - not launching anything

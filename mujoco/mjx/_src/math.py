@@ -179,6 +179,7 @@ def make_frame(a: wp.vec3):
   # fmt: on
 
 
+@wp.func
 def normalize_with_norm(x: wp.vec3):
   norm = wp.length(x)
   if norm == 0.0:
