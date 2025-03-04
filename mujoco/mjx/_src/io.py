@@ -176,6 +176,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.geom_bodyid = wp.array(mjm.geom_bodyid, dtype=wp.int32, ndim=1)
   m.geom_pos = wp.array(mjm.geom_pos, dtype=wp.vec3, ndim=1)
   m.geom_quat = wp.array(mjm.geom_quat, dtype=wp.quat, ndim=1)
+  m.geom_size = wp.array(mjm.geom_size, dtype=wp.vec3, ndim=1)
   m.geom_priority = wp.array(mjm.geom_priority, dtype=wp.int32, ndim=1)
   m.geom_solmix = wp.array(mjm.geom_solmix, dtype=wp.float32, ndim=1)
   m.geom_solref = wp.array(mjm.geom_solref, dtype=wp.float32, ndim=2)
