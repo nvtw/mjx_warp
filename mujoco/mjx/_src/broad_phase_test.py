@@ -74,7 +74,9 @@ def overlap(
   )
 
 
-def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos, rot):
+def find_overlaps_brute_force(
+  worldId: int, num_boxes_per_world: int, boxes, pos, rot, geom_bodyid
+):
   """
   Finds overlapping bounding boxes using the brute-force O(n^2) algorithm.
   Returns:
@@ -90,6 +92,9 @@ def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos
         boxes[j][0], boxes[j][1], pos[worldId][j], rot[worldId][j]
       )
 
+      if geom_bodyid[i] == geom_bodyid[j]:
+        continue
+
       if overlap(aabb_i, aabb_j):
         overlaps.append((i, j))  # Store indices of overlapping boxes
 
@@ -97,7 +102,7 @@ def find_overlaps_brute_force(worldId: int, num_boxes_per_world: int, boxes, pos
 
 
 def find_overlaps_brute_force_batched(
-  num_worlds: int, num_boxes_per_world: int, boxes, pos, rot
+  num_worlds: int, num_boxes_per_world: int, boxes, pos, rot, geom_bodyid
 ):
   """
   Finds overlapping bounding boxes using the brute-force O(n^2) algorithm.
@@ -109,7 +114,9 @@ def find_overlaps_brute_force_batched(
 
   for worldId in range(num_worlds):
     overlaps.append(
-      find_overlaps_brute_force(worldId, num_boxes_per_world, boxes, pos, rot)
+      find_overlaps_brute_force(
+        worldId, num_boxes_per_world, boxes, pos, rot, geom_bodyid
+      )
     )
 
   return overlaps
@@ -135,8 +142,54 @@ class MultiIndexList:
 class BroadPhaseTest(parameterized.TestCase):
   def test_broad_phase(self):
     """Tests broad phase."""
-    _, mjd, m, d = test_util.fixture("cube.xml")
 
+    _MODEL = """
+     <mujoco>
+      <worldbody>
+        <geom size="40 40 40" type="plane"/>   <!- (0) intersects with nothing -->
+        <body pos="0 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (1) intersects with 2, 6, 7 -->
+        </body>
+        <body pos="0.1 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (2) intersects with 1, 6, 7 -->
+        </body>
+
+        <body pos="1.8 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (3) intersects with 4  -->
+        </body>
+        <body pos="1.6 0 0.7">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (4) intersects with 3 -->
+        </body>
+
+        <body pos="0 0 1.8">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (5) intersects with 7 -->
+          <geom size="0.5 0.5 0.5" type="box" pos="0 0 -1"/> <!- (6) intersects with 2, 1, 7 -->
+        </body>
+        <body pos="0 0.5 1.2">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/> <!- (7) intersects with 5, 6 -->
+        </body>
+        
+      </worldbody>
+    </mujoco>
+    """
+
+    m = mujoco.MjModel.from_xml_string(_MODEL)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mjx.broadphase(mx, dx)
+
+    m = mx
+    d = dx
     aabbs = m.geom_aabb.numpy()
     pos = d.geom_xpos.numpy()
     rot = d.geom_xmat.numpy()
@@ -146,7 +199,7 @@ class BroadPhaseTest(parameterized.TestCase):
     rot = rot.reshape((d.nworld, m.ngeom, 3, 3))
 
     brute_force_overlaps = find_overlaps_brute_force_batched(
-      d.nworld, m.ngeom, aabbs, pos, rot
+      d.nworld, m.ngeom, aabbs, pos, rot, m.geom_bodyid.numpy()
     )
 
     mjx.broadphase(m, d)
