@@ -358,31 +358,16 @@ def get_contact_solver_params_kernel(
   p1 = m.geom_priority[g1]
   p2 = m.geom_priority[g2]
   mix = where(p1 == p2, mix, where(p1 > p2, 1.0, 0.0))
-  is_standard = (m.geom_solref[g1, 0] > 0) and (m.geom_solref[g2, 0] > 0)
 
-  solref_ = wp.vec(0.0, length=MJ_NREF, dtype=wp.float32)
-  for i in range(MJ_NREF):
-    solref_[i] = mix * m.geom_solref[g1, i] + (1.0 - mix) * m.geom_solref[g2, i]
-    solref_[i] = where(
-      is_standard, solref_[i], wp.min(m.geom_solref[g1, i], m.geom_solref[g2, i])
-    )
-
-  friction_ = wp.vec3(0.0, 0.0, 0.0)
-  for i in range(3):
-    friction_[i] = wp.max(m.geom_friction[g1, i], m.geom_friction[g2, i])
-
-  friction5 = vec5(friction_[0], friction_[0], friction_[1], friction_[2], friction_[2])
-
+  if m.geom_solref[g1].x > 0.0 and m.geom_solref[g2].x > 0.0:
+    d.contact.solref[tid] = mix * m.geom_solref[g1] + (1.0 - mix) * m.geom_solref[g2]
+  else:
+    d.contact.solref[tid] = wp.min(m.geom_solref[g1], m.geom_solref[g2])
   d.contact.includemargin[tid] = margin - gap
+  friction_ = wp.max(m.geom_friction[g1], m.geom_friction[g2])
+  friction5 = vec5(friction_[0], friction_[0], friction_[1], friction_[2], friction_[2])
   d.contact.friction[tid] = friction5
-
-  for i in range(2):
-    d.contact.solref[tid][i] = solref_[i]
-
-  for i in range(MJ_NIMP):
-    d.contact.solimp[tid][i] = (
-      mix * m.geom_solimp[g1, i] + (1.0 - mix) * m.geom_solimp[g2, i]
-    )  # solimp_[i]
+  d.contact.solimp[tid] = mix * m.geom_solimp[g1] + (1.0 - mix) * m.geom_solimp[g2]
 
 
 @wp.kernel
