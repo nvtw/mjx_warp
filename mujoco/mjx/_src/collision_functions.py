@@ -160,7 +160,7 @@ def plane_sphere(plane: GeomPlane, sphere: GeomSphere, worldid: int, d: Data):
   d.contact.dist[index] = dist
   d.contact.pos[index] = pos
   d.contact.frame[index] = make_frame(plane.normal)
-  d.contact.worldid[index] = worldid
+  return index, 1
 
 
 @wp.func
@@ -178,7 +178,7 @@ def sphere_sphere(sphere1: GeomSphere, sphere2: GeomSphere, worldid: int, d: Dat
   d.contact.dist[index] = dist
   d.contact.pos[index] = pos
   d.contact.frame[index] = make_frame(n)
-  d.contact.worldid[index] = worldid
+  return index, 1
 
 
 @wp.func
@@ -198,19 +198,19 @@ def plane_capsule(plane: GeomPlane, cap: GeomCapsule, worldid: int, d: Data):
   frame = mat33_from_cols(n, b, wp.cross(n, b))
   segment = axis * cap.halfsize
 
-  index = wp.atomic_add(d.ncon, 0, 2)
+  start_index = wp.atomic_add(d.ncon, 0, 2)
+  index = start_index
   dist, pos = _plane_sphere(n, plane.pos, cap.pos + segment, cap.radius)
   d.contact.dist[index] = dist
   d.contact.pos[index] = pos
   d.contact.frame[index] = frame
-  d.contact.worldid[index] = worldid
   index += 1
 
   dist, pos = _plane_sphere(n, plane.pos, cap.pos - segment, cap.radius)
   d.contact.dist[index] = dist
   d.contact.pos[index] = pos
   d.contact.frame[index] = frame
-  d.contact.worldid[index] = worldid
+  return start_index, 2
 
 
 _collision_functions = {
@@ -252,7 +252,10 @@ def create_collision_function_kernel(type1, type2):
       d.geom_xmat[g2],
     )
 
-    wp.static(_collision_functions[(type1, type2)])(geom1, geom2, worldid, d)
+    index, ncon = wp.static(_collision_functions[(type1, type2)])(geom1, geom2, worldid, d)
+    for i in range(ncon):
+      d.contact.worldid[index + i] = worldid
+      d.contact.geom[index + i] = geoms
 
   return _collision_function_kernel
 
