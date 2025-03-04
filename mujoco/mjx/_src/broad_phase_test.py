@@ -15,11 +15,12 @@
 
 """Tests for broad phase functions."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import mujoco
 from mujoco import mjx
 import warp as wp
+from absl.testing import absltest, parameterized
+
+from mujoco import mjx
 
 from . import test_util
 
