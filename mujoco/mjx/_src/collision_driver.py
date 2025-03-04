@@ -422,7 +422,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
       d.box_projections_lower,
       d.box_sorting_indexer,
       m.ngeom * d.nworld,
-      d.segment_indices
+      d.segment_indices,
     )
   else:
     # Sort each world's segment separately
