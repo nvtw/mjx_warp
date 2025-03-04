@@ -152,16 +152,16 @@ class BroadPhaseTest(parameterized.TestCase):
     mjx.broadphase(m, d)
 
     result = d.broadphase_pairs
-    result_count = d.result_count
+    broadphase_result_count = d.broadphase_result_count
 
-    # Get numpy arrays from result and result_count
+    # Get numpy arrays from result and broadphase_result_count
     result_np = result.numpy()
-    result_count_np = result_count.numpy()
+    broadphase_result_count_np = broadphase_result_count.numpy()
 
     # Iterate over each world
     for world_idx in range(d.nworld):
       # Get number of collisions for this world
-      num_collisions = result_count_np[world_idx]
+      num_collisions = broadphase_result_count_np[world_idx]
       print(f"Number of collisions for world {world_idx}: {num_collisions}")
 
       list = brute_force_overlaps[world_idx]
@@ -228,7 +228,7 @@ class BroadPhaseTest(parameterized.TestCase):
 
     mjx.broadphase(mx, dx)
 
-    assert dx.result_count.numpy()[0] == 8
+    assert dx.broadphase_result_count.numpy()[0] == 8
 
 
 if __name__ == "__main__":
