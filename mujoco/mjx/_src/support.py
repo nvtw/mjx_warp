@@ -191,10 +191,10 @@ def group_key(type1: wp.int32, type2: wp.int32) -> wp.int32:
 
 
 @wp.func
-def all_same(a: wp.vec3, b: wp.vec3):
-  return a[0] == b[0] and a[1] == b[1] and a[2] == b[2]
+def mat33_from_rows(a: wp.vec3, b: wp.vec3, c: wp.vec3):
+  return wp.mat33(a, b, c)
 
 
 @wp.func
-def any_different(a: wp.vec3, b: wp.vec3):
-  return a[0] != b[0] or a[1] != b[1] or a[2] != b[2]
+def mat33_from_cols(a: wp.vec3, b: wp.vec3, c: wp.vec3):
+  return wp.mat33(a.x, b.x, c.x, a.y, b.y, c.y, a.z, b.z, c.z)
