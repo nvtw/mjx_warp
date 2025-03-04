@@ -22,9 +22,60 @@ from .types import Contact, Data, Model
 import math
 
 
+LARGE_VAL = 1e6
+
+BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
+
+BOX_FACES = np.array([
+      0, 4, 5, 1,
+      0, 2, 6, 4,
+      6, 7, 5, 4,
+      2, 3, 7, 6,
+      1, 5, 7, 3,
+      0, 1, 3, 2,
+  ]).reshape((-1, 4))
+
+BOX_NORMALS = np.array(
+    [[ 0, -1,  0],
+     [ 0,  0, -1],
+     [ 1,  0,  0],
+     [ 0,  1,  0],
+     [ 0,  0,  1],
+     [-1,  0,  0]]).reshape((-1, 3))
+
+
+class mat83f(wp.types.matrix(shape=(8, 3), dtype=wp.float32)):
+    pass
+
+
+class mat43f(wp.types.matrix(shape=(4, 3), dtype=wp.float32)):
+    pass
+
+
+class mat38f(wp.types.matrix(shape=(3, 8), dtype=wp.float32)):
+    pass
+
 @wp.struct
 class Box:
-  verts: wp.array(dtype=wp.vec3, ndim=1)
+    verts: mat83f
+
+
+@wp.func
+def box(R: wp.mat33) -> Box:
+  """Get a transformed box"""
+  x, y, z = m.geom_size[geom_idx, 0], m.geom_size[geom_idx, 1], m.geom_size[geom_idx, 2]
+  t = wp.vec3(0.0)
+  m = mat38f(
+      R @ wp.vec3(-x, -y, -z) + t,
+      R @ wp.vec3(-x, -y, +z) + t,
+      R @ wp.vec3(-x, +y, -z) + t,
+      R @ wp.vec3(-x, +y, +z) + t,
+      R @ wp.vec3(+x, -y, -z) + t,
+      R @ wp.vec3(+x, -y, +z) + t,
+      R @ wp.vec3(+x, +y, -z) + t,
+      R @ wp.vec3(+x, +y, +z) + t,
+  )
+  return Box(wp.transpose(m))
 
 
 @wp.func
@@ -42,7 +93,7 @@ def get_axis(
     elif axis_idx < 12: # b faces
         axis = wp.vec3(BOX_NORMALS[axis_idx-6])
         is_degenerate = False
-    else: # edges
+    else: # edges cross products
         assert axis_idx < 21
         edges = axis_idx - 12
         axis_a, axis_b = edges / 3, edges % 3
@@ -55,9 +106,6 @@ def get_axis(
             axis = wp.vec3(-edge_a[1], edge_a[0], 0.0)
         is_degenerate = wp.length_sq(axis) < 1e-6
     return wp.normalize(axis), is_degenerate
-
-
-LARGE_VAL = 1e6
 
 
 @wp.func
@@ -83,69 +131,61 @@ def get_box_axis_support(axis: wp.vec3, degenerate_axis: bool, a: Box, b: Box) -
 
 
 @wp.struct
-class SupportAxis:
+class AxisSupport:
     best_dist: wp.float32
     best_sign: wp.int8
     best_idx: wp.int8
 
 
 @wp.func
-def reduce_support_axis(a: SupportAxis, b: SupportAxis):
+def reduce_support_axis(a: AxisSupport, b: AxisSupport):
   return wp.select(a.best_dist > b.best_dist, a, b)
-
-
-BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
-
-BOX_FACES = np.array([
-      0, 4, 5, 1,
-      0, 2, 6, 4,
-      6, 7, 5, 4,
-      2, 3, 7, 6,
-      1, 5, 7, 3,
-      0, 1, 3, 2,
-  ]).reshape((-1, 4))
-
-BOX_NORMALS = np.array(
-    [[ 0, -1,  0],
-     [ 0,  0, -1],
-     [ 1,  0,  0],
-     [ 0,  1,  0],
-     [ 0,  0,  1],
-     [-1,  0,  0]]).reshape((-1, 3))
-
-
-@wp.func
-def box(m: Model, geom_idx: int, R: wp.mat33, t: wp.vec3) -> Box:
-  """Get a transformed box"""
-  x, y, z = m.geom_size[geom_idx, 0], m.geom_size[geom_idx, 1], m.geom_size[geom_idx, 2]
-  b = Box()
-  b.verts[0] = R @ wp.vec3(-x, -y, -z) + t
-  b.verts[1] = R @ wp.vec3(-x, -y, +z) + t
-  b.verts[2] = R @ wp.vec3(-x, +y, -z) + t
-  b.verts[3] = R @ wp.vec3(-x, +y, +z) + t
-  b.verts[4] = R @ wp.vec3(+x, -y, -z) + t
-  b.verts[5] = R @ wp.vec3(+x, -y, +z) + t
-  b.verts[6] = R @ wp.vec3(+x, +y, -z) + t
-  b.verts[7] = R @ wp.vec3(+x, +y, +z) + t
-  return b
 
 
 @wp.func
 def collision_axis_tiled(
-    normals_a: wp.array(dtype=wp.vec3),
-    normals_b: wp.array(dtype=wp.vec3),
+    m: Model,
+    d: Data,
+    a: Box,
+    b: Box,
     R: wp.array(dtype=wp.mat33),
-    bp_idx: int,
     axis_idx: int,
-) -> tuple[wp.vec3, wp.int8, ]:
+) -> tuple[wp.vec3, wp.int8]:
   """Finds the axis of minimum separation or maximum overlap.
   Returns:
     best_axis: vec3
     best_idx: int8
   """
-  # launch tiled with dim box_pairs and block_dim=21
-  # TODO(ca): tiled axis of minimum seperation
+  # launch tiled with block_dim=21
+
+  axis, degenerate_axis = get_axis(axis_idx, R)
+  axis_dist, axis_sign = get_box_axis_support(axis, degenerate_axis, a, b)
   
+  supports = wp.tile(AxisSupport(axis_dist, wp.int8(axis_sign), wp.int8(axis_idx)))
+
+  face_supports = wp.tile_view(supports, offset=(0,), shape=(12,))
+  edge_supports = wp.tile_view(supports, offset=(12,), shape=(9,))
+
+  # TODO(ca): handle untile & tile usage
+  best_face = wp.untile(wp.tile_broadcast(
+      wp.tile_reduce(reduce_support_axis, face_supports),
+      shape=(1,21)))
+  best_edge = wp.untile(wp.tile_broadcast(
+      wp.tile_reduce(reduce_support_axis, edge_supports),
+      shape=(1,21)))
+  
+  if axis_idx > 0:
+      return
+  
+  face_axis = get_axis(best_face.best_idx)
+  best_axis = wp.vec3(face_axis)
+  if best_edge.dist < best_face.dist:
+      edge_axis = get_axis(best_edge.idx)
+      if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
+          best_axis = edge_axis
+
+
+  # get the (reference) face most aligned with the separating axis
   return wp.vec3(0.0)
 
 
@@ -170,20 +210,39 @@ def box_box_kernel(
   num_candidate_contacts = d.narrowphase_candidate_group_count[group_key]
 
   for bp_idx in range(thread_idx, num_candidate_contacts, num_kernels):
-    box1_idx, box2_idx = d.narrowphase_candidate_geom[group_key, bp_idx]
-    worldid = d.narrowphase_candidate_worldid[group_key, bp_idx]
+    a_idx, b_idx = d.narrowphase_candidate_geom[group_key, bp_idx]
+    world_id = d.narrowphase_candidate_worldid[group_key, bp_idx]
+
+    # transformations
+    a_pos, b_pos = d.geom_xpos[world_id, a_idx], d.geom_xpos[world_id, b_idx]
+    a_mat, b_mat = d.geom_xmat[world_id, a_idx], d.geom_xmat[world_id, b_idx]
+    b_mat_inv = wp.transpose(b_mat)
+    trans_atob = b_mat_inv @ (a_pos - b_pos)
+    rot_atob = b_mat_inv @ a_mat
+
+    a = box(m, a_idx, rot_atob, trans_atob)
+    b = box(m, a_idx, wp.identity(3), wp.vec3(0.0))
+
+
+    # TODO(ca):
+    # - faces compute from verts
 
     # box-box implementation
-    sep_axis, sep_axis_idx = collision_axis_tiled(m, d, bp_idx, axis_idx)
-    dist, pos, frame = create_contact_manifold(m, d, bp_idx, axis_idx)
+    sep_axis, sep_axis_idx = collision_axis_tiled(m, d, rot_atob, a, b, axis_idx)
+    dist, pos, normal = create_contact_manifold(m, d, axis_idx)
+
+    # generate contact w/ 1 thread per pair
+    if axis_idx != 0:
+      return
 
     # if contact
-    if axis_idx == 0 and dist < 0:
+    if dist < 0:
       contact_idx = wp.atomic_add(d.contact_counter, 0, 1)
+      # TODO(ca): multi-dimensional contacts
       d.contact.dist[contact_idx] = dist
-      d.contact.pos[contact_idx] = pos
-      d.contact.frame[contact_idx] = frame
-      d.contact.worldid[contact_idx] = worldid
+      d.contact.pos[contact_idx] = b_pos + b_mat @ pos
+      d.contact.frame[contact_idx] = make_frame(b_mat @ normal)
+      d.contact.worldid[contact_idx] = world_id
 
 
 def box_box(
@@ -200,15 +259,6 @@ def box_box(
     inputs=[m, d, group_key, num_kernels],
     block_dim=21,
   )
-@wp.func
-def _argmax(a: wp.array(dtype=Any)) -> wp.int32:
-    m = type(a[0])(a[0])
-    am = wp.int32(0)
-    for i in range(a.shape[0]):
-      if a[i] > m:
-          m = a[i]
-          am = i
-    return am
 
 
 @wp.func
@@ -259,6 +309,16 @@ def _clip_edge_to_poly(
     assert subject_poly_length[poly_idx] > 1, "subject_poly_length must be > 1"
     assert clipping_poly_length[poly_idx] > 1, "clipping_poly_length must be > 1"
     n_subj = subject_poly_length[poly_idx]
+@wp.func
+def _clip_edge_to_quad(
+    subject_poly: mat43f,
+    clipping_poly: mat43f,
+    clipping_normal: wp.vec3,
+):
+
+  for edge_idx in range(4):
+    subject_p0 = subject_poly[(edge_idx + 3) % 4]
+    subject_p1 = subject_poly[edge_idx]
 
     any_both_in_front = wp.int32(0)
     clipped0_dist_max = wp.float32(-1e6)
@@ -266,49 +326,60 @@ def _clip_edge_to_poly(
     clipped_p0_distmax = wp.vec3(0.0)
     clipped_p1_distmax = wp.vec3(0.0)
 
-    if edge_idx < subject_poly_length[poly_idx]:
-      subject_p0 = subject_poly[poly_idx, (edge_idx - 1 + n_subj) % n_subj]
-      subject_p1 = subject_poly[poly_idx, edge_idx]
-      for clipping_edge_idx in range(clipping_poly_length[poly_idx]):
-        n_clip = clipping_poly_length[poly_idx]
-        clipping_p0 = clipping_poly[poly_idx, (clipping_edge_idx - 1 + n_clip) % n_clip]
-        clipping_p1 = clipping_poly[poly_idx, clipping_edge_idx]
-        edge_normal = wp.cross(clipping_p1 - clipping_p0, clipping_normal[poly_idx])
+    for clipping_edge_idx in range(4):
+      clipping_p0 = clipping_poly[(clipping_edge_idx + 3) % 4]
+      clipping_p1 = clipping_poly[clipping_edge_idx]
+      edge_normal = wp.cross(clipping_p1 - clipping_p0, clipping_normal)
 
-        p0_in_front = wp.dot(subject_p0 - clipping_p0, edge_normal) > 1e-6
-        p1_in_front = wp.dot(subject_p1 - clipping_p0, edge_normal) > 1e-6
-        candidate_clipped_p = _closest_segment_point_plane(subject_p0, subject_p1, clipping_p0, edge_normal)
-        clipped_p0 = wp.select(p0_in_front, subject_p0, candidate_clipped_p)
-        clipped_p1 = wp.select(p1_in_front, subject_p1, candidate_clipped_p)
-        clipped_dist_p0 = wp.dot(clipped_p0 - subject_p0, subject_p1 - subject_p0)
-        clipped_dist_p1 = wp.dot(clipped_p1 - subject_p1, subject_p0 - subject_p1)
-        any_both_in_front |= wp.int32(p0_in_front and p1_in_front)
+      p0_in_front = wp.dot(subject_p0 - clipping_p0, edge_normal) > 1e-6
+      p1_in_front = wp.dot(subject_p1 - clipping_p0, edge_normal) > 1e-6
+      wp.printf("Edge %d plane %d: p0if: %d, p1if: %d\n", edge_idx, clipping_edge_idx, p0_in_front, p1_in_front)
+      candidate_clipped_p = _closest_segment_point_plane(subject_p0, subject_p1, clipping_p1, edge_normal)
+      clipped_p0 = wp.select(p0_in_front, subject_p0, candidate_clipped_p)
+      clipped_p1 = wp.select(p1_in_front, subject_p1, candidate_clipped_p)
+      clipped_dist_p0 = wp.dot(clipped_p0 - subject_p0, subject_p1 - subject_p0)
+      clipped_dist_p1 = wp.dot(clipped_p1 - subject_p1, subject_p0 - subject_p1)
+      any_both_in_front |= wp.int32(p0_in_front and p1_in_front)
 
-        if clipped_dist_p0 > clipped0_dist_max:
-          clipped0_dist_max = clipped_dist_p0
-          clipped_p0_distmax = clipped_p0
+      if clipped_dist_p0 > clipped0_dist_max:
+        clipped0_dist_max = clipped_dist_p0
+        clipped_p0_distmax = clipped_p0
 
-        if clipped_dist_p1 > clipped1_dist_max:
-          clipped1_dist_max = clipped_dist_p1
-          clipped_p1_distmax = clipped_p1
-      new_p0 = wp.select(any_both_in_front, clipped_p0_distmax, subject_p0)
-      new_p1 = wp.select(any_both_in_front, clipped_p1_distmax, subject_p1)
-      if poly_idx < clipping_poly.shape[0]:
-        offset = clipped_points_offset[poly_idx]
-      else:
-        offset = 0
+      if clipped_dist_p1 > clipped1_dist_max:
+        clipped1_dist_max = clipped_dist_p1
+        clipped_p1_distmax = clipped_p1
+    # new_p0 = wp.select(any_both_in_front, clipped_p0_distmax, subject_p0)
+    # new_p1 = wp.select(any_both_in_front, clipped_p1_distmax, subject_p1)
+    new_p0 = clipped_p0_distmax
+    new_p1 = clipped_p1_distmax
 
-      clipped_point_index = 2*(edge_idx + offset)
-      clipped_points[poly_idx, clipped_point_index] = new_p0
-      clipped_points[poly_idx, clipped_point_index+1] = new_p1
-      mask_val = wp.select(
-          wp.dot(subject_p0 - subject_p1, new_p0 - new_p1) < 0,
-          wp.int32(not any_both_in_front),
-          0)
-      mask[poly_idx, clipped_point_index] = mask_val
-      mask[poly_idx, clipped_point_index+1] = mask_val
-      if edge_idx == 0:
-        clipped_points_length[poly_idx] = 2*(offset + subject_poly_length[poly_idx])
+    mask_val = wp.int8(wp.select(
+        wp.dot(subject_p0 - subject_p1, new_p0 - new_p1) < 0,
+        wp.int32(not any_both_in_front),
+        0))
+
+    if edge_idx == 0:
+       clipped_p0_0 = new_p0
+       clipped_p1_0 = new_p1
+       mask_p0_0 = mask_val
+    elif edge_idx == 1:
+       clipped_p0_1 = new_p0
+       clipped_p1_1 = new_p1
+       mask_p0_1 = mask_val
+    elif edge_idx == 2:
+       clipped_p0_2 = new_p0
+       clipped_p1_2 = new_p1
+       mask_p0_2 = mask_val
+    else:
+       clipped_p0_3 = new_p0
+       clipped_p1_3 = new_p1
+       mask_p0_3 = mask_val
+  return (
+      wp.transpose(mat34f(clipped_p0_0, clipped_p0_1, clipped_p0_2, clipped_p0_3)),
+      wp.transpose(mat34f(clipped_p1_0, clipped_p1_1, clipped_p1_2, clipped_p1_3)),
+      wp.vec4b(mask_p0_0, mask_p0_1, mask_p0_2, mask_p0_3),
+      )
+  
 
 
 @wp.kernel
