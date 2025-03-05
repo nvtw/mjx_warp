@@ -17,10 +17,7 @@ import warp as wp
 
 from .types import Model
 from .types import Data
-from .types import Contact
 from .types import MJ_MINVAL
-from .types import MJ_NREF
-from .types import MJ_NIMP
 from .types import vec5
 from .types import DisableBit
 from .support import where
