@@ -145,21 +145,11 @@ class ForwardTest(absltest.TestCase):
     np.testing.assert_allclose(d.qvel.numpy()[0], 1 + mjm.opt.timestep)
 
   def test_stepping(self):
-    path = epath.resource_path("mujoco.mjx") / "test_data/pendula.xml"
-    mjm = mujoco.MjModel.from_xml_path(path.as_posix())
-    self.assertTrue((mjm.dof_damping > 0).any())
+    _, mjd, m, d = self._load("humanoid/humanoid.xml")
 
-    mjd = mujoco.MjData(mjm)
-    mjd.qvel[:] = 1.0
-    mjd.qacc[:] = 1.0
-    mujoco.mj_forward(mjm, mjd)
-
-    m = mjx.put_model(mjm)
-    d = mjx.put_data(mjm, mjd)
-
-    for i in range(100):
+    for i in range(10):
       mjx.step(m, d)
-    pass
+      print(i)
 
 
 class ImplicitIntegratorTest(parameterized.TestCase):
