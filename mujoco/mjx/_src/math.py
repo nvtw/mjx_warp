@@ -16,6 +16,7 @@
 import warp as wp
 
 from . import types
+from .support import where
 
 
 @wp.func
@@ -151,19 +152,36 @@ def quat_integrate(q: wp.quat, v: wp.vec3, dt: wp.float32) -> wp.quat:
 
 
 @wp.func
-def orthogonals(a: wp.vec3) -> tuple[wp.vec3, wp.vec3]:
-  """Returns orthogonal vectors `b` and `c`, given a vector `a`."""
-  y, z = wp.vec3(0, 1, 0), wp.vec3(0, 0, 1)
-  b = wp.select((-0.5 < a[1]) and (a[1] < 0.5), z, y)
+def orthogonals(a: wp.vec3):
+  y = wp.vec3(0.0, 1.0, 0.0)
+  z = wp.vec3(0.0, 0.0, 1.0)
+  b = where((-0.5 < a[1]) and (a[1] < 0.5), y, z)
   b = b - a * wp.dot(a, b)
-  # normalize b. however if a is a zero vector, zero b as well.
-  b = wp.select(wp.length_sq(a) > 0.0, vec3(0), wp.normalize(b))
-  return b, wp.cross(a, b)
+  b = wp.normalize(b)
+  if wp.length(a) == 0.0:
+    b = wp.vec3(0.0, 0.0, 0.0)
+  c = wp.cross(a, b)
+
+  return b, c
 
 
 @wp.func
-def make_frame(a: wp.vec3) -> wp.mat33:
-  """Makes a right-handed 3D frame given a direction."""
+def make_frame(a: wp.vec3):
   a = wp.normalize(a)
   b, c = orthogonals(a)
-  return jp.array([a, b, c])
+
+  # fmt: off
+  return wp.mat33(
+    a.x, a.y, a.z,
+    b.x, b.y, b.z,
+    c.x, c.y, c.z
+  )
+  # fmt: on
+
+
+@wp.func
+def normalize_with_norm(x: wp.vec3):
+  norm = wp.length(x)
+  if norm == 0.0:
+    return x, 0.0
+  return x / norm, norm

@@ -18,6 +18,9 @@ import warp as wp
 from .types import Model
 from .types import Data
 from .types import array2df
+from .types import NUM_GEOM_TYPES
+from typing import Any
+from .types import array3df
 
 
 def is_sparse(m: mujoco.MjModel):
@@ -35,21 +38,42 @@ def mul_m(
   """Multiply vector by inertia matrix."""
 
   if not m.opt.is_sparse:
-    # TODO(team): tile_matmul
-    res.zero_()
 
-    @wp.kernel
-    def _mul_m_dense(
-      d: Data,
-      res: wp.array(ndim=2, dtype=wp.float32),
-      vec: wp.array(ndim=2, dtype=wp.float32),
-    ):
-      worldid, rowid, colid = wp.tid()
-      wp.atomic_add(
-        res[worldid], rowid, d.qM[worldid, rowid, colid] * vec[worldid, colid]
+    def tile_mul(adr: int, size: int, tilesize: int):
+      # TODO(team): speed up kernel compile time (14s on 2023 Macbook Pro)
+      @wp.kernel
+      def mul(m: Model, d: Data, leveladr: int, res: array3df, vec: array3df):
+        worldid, nodeid = wp.tid()
+        dofid = m.qLD_tile[leveladr + nodeid]
+        qM_tile = wp.tile_load(
+          d.qM[worldid], shape=(tilesize, tilesize), offset=(dofid, dofid)
+        )
+        vec_tile = wp.tile_load(vec[worldid], shape=(tilesize, 1), offset=(dofid, 0))
+        res_tile = wp.tile_zeros(shape=(tilesize, 1), dtype=wp.float32)
+        wp.tile_matmul(qM_tile, vec_tile, res_tile)
+        wp.tile_store(res[worldid], res_tile, offset=(dofid, 0))
+
+      wp.launch_tiled(
+        mul,
+        dim=(d.nworld, size),
+        inputs=[
+          m,
+          d,
+          adr,
+          res.reshape(res.shape + (1,)),
+          vec.reshape(vec.shape + (1,)),
+        ],
+        # TODO(team): develop heuristic for block dim, or make configurable
+        block_dim=32,
       )
 
-    wp.launch(_mul_m_dense, dim=(d.nworld, m.nv, m.nv), inputs=[d, res, vec])
+    qLD_tileadr, qLD_tilesize = m.qLD_tileadr.numpy(), m.qLD_tilesize.numpy()
+
+    for i in range(len(qLD_tileadr)):
+      beg = qLD_tileadr[i]
+      end = m.qLD_tile.shape[0] if i == len(qLD_tileadr) - 1 else qLD_tileadr[i + 1]
+      tile_mul(beg, end - beg, int(qLD_tilesize[i]))
+
   else:
 
     @wp.kernel
@@ -154,3 +178,45 @@ def xfrc_accumulate(m: Model, d: Data) -> array2df:
   wp.launch(kernel=compute_qfrc, dim=(d.nworld, m.nv), inputs=[d, m, mask, qfrc_total])
 
   return qfrc_total
+
+
+@wp.func
+def where(condition: bool, ret_true: Any, ret_false: Any):
+  if condition:
+    return ret_true
+  return ret_false
+
+
+@wp.func
+def bisection(x: wp.array(dtype=int), v: int, a_: int, b_: int) -> int:
+  # Binary search for the largest index i such that x[i] <= v
+  # x is a sorted array
+  # a and b are the start and end indices within x to search
+  a = int(a_)
+  b = int(b_)
+  c = int(0)
+  while b - a > 1:
+    c = (a + b) // 2
+    if x[c] <= v:
+      a = c
+    else:
+      b = c
+  c = a
+  if c != b and x[b] <= v:
+    c = b
+  return c
+
+
+@wp.func
+def group_key(type1: wp.int32, type2: wp.int32) -> wp.int32:
+  return type1 + type2 * NUM_GEOM_TYPES
+
+
+@wp.func
+def mat33_from_rows(a: wp.vec3, b: wp.vec3, c: wp.vec3):
+  return wp.mat33(a, b, c)
+
+
+@wp.func
+def mat33_from_cols(a: wp.vec3, b: wp.vec3, c: wp.vec3):
+  return wp.mat33(a.x, b.x, c.x, a.y, b.y, c.y, a.z, b.z, c.z)

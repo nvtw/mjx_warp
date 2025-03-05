@@ -12,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+
 import itertools
+import math
 from typing import Any
 
-import warp as wp
 import numpy as np
+import warp as wp
 
-from .types import Contact, Data, Model
-import math
+from .types import Model
+from .types import Data
+
+# XXX disable backward pass codegen globally for now
+wp.config.enable_backward = False
+
+
+def narrowphase(m: Model, d: Data):
+  pass
 
 
 LARGE_VAL = 1e6
