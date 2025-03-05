@@ -48,12 +48,21 @@ class mat83f(wp.types.matrix(shape=(8, 3), dtype=wp.float32)):
     pass
 
 
+class mat34f(wp.types.matrix(shape=(3, 4), dtype=wp.float32)):
+    pass
+
+
 class mat43f(wp.types.matrix(shape=(4, 3), dtype=wp.float32)):
     pass
 
 
 class mat38f(wp.types.matrix(shape=(3, 8), dtype=wp.float32)):
     pass
+
+
+class vec8b(wp.types.vector(length=8, dtype=wp.int8)):
+    pass
+
 
 @wp.struct
 class Box:
@@ -305,10 +314,27 @@ def _clip_edge_to_poly(
     assert clipped_points.shape[1] == subject_poly.shape[1] + clipping_poly.shape[1]
     assert clipped_points.shape[1] == mask.shape[1]
 
-    poly_idx, edge_idx = wp.tid()
-    assert subject_poly_length[poly_idx] > 1, "subject_poly_length must be > 1"
-    assert clipping_poly_length[poly_idx] > 1, "clipping_poly_length must be > 1"
-    n_subj = subject_poly_length[poly_idx]
+
+@wp.func
+def _project_quad_onto_plane(
+    quad: mat43f,
+    quad_n: wp.vec3,
+    plane_n: wp.vec3,
+    plane_pt: wp.vec3,
+):
+  """Projects poly1 onto the poly2 plane along poly2's normal."""
+  d = wp.dot(plane_pt, plane_n)
+  denom = wp.dot(quad_n, plane_n)
+  qn_scaled = quad_n / (denom + wp.select(denom == 0.0, 1e-6, 0.0))
+
+  return wp.transpose(mat34f(
+    quad[0] + (d - wp.dot(quad[0], plane_n)) * qn_scaled,
+    quad[1] + (d - wp.dot(quad[1], plane_n)) * qn_scaled,
+    quad[2] + (d - wp.dot(quad[2], plane_n)) * qn_scaled,
+    quad[3] + (d - wp.dot(quad[3], plane_n)) * qn_scaled,
+  ))
+
+
 @wp.func
 def _clip_edge_to_quad(
     subject_poly: mat43f,
@@ -333,7 +359,6 @@ def _clip_edge_to_quad(
 
       p0_in_front = wp.dot(subject_p0 - clipping_p0, edge_normal) > 1e-6
       p1_in_front = wp.dot(subject_p1 - clipping_p0, edge_normal) > 1e-6
-      wp.printf("Edge %d plane %d: p0if: %d, p1if: %d\n", edge_idx, clipping_edge_idx, p0_in_front, p1_in_front)
       candidate_clipped_p = _closest_segment_point_plane(subject_p0, subject_p1, clipping_p1, edge_normal)
       clipped_p0 = wp.select(p0_in_front, subject_p0, candidate_clipped_p)
       clipped_p1 = wp.select(p1_in_front, subject_p1, candidate_clipped_p)
@@ -348,10 +373,8 @@ def _clip_edge_to_quad(
       if clipped_dist_p1 > clipped1_dist_max:
         clipped1_dist_max = clipped_dist_p1
         clipped_p1_distmax = clipped_p1
-    # new_p0 = wp.select(any_both_in_front, clipped_p0_distmax, subject_p0)
-    # new_p1 = wp.select(any_both_in_front, clipped_p1_distmax, subject_p1)
-    new_p0 = clipped_p0_distmax
-    new_p1 = clipped_p1_distmax
+    new_p0 = wp.select(any_both_in_front, clipped_p0_distmax, subject_p0)
+    new_p1 = wp.select(any_both_in_front, clipped_p1_distmax, subject_p1)
 
     mask_val = wp.int8(wp.select(
         wp.dot(subject_p0 - subject_p1, new_p0 - new_p1) < 0,
@@ -379,121 +402,240 @@ def _clip_edge_to_quad(
       wp.transpose(mat34f(clipped_p1_0, clipped_p1_1, clipped_p1_2, clipped_p1_3)),
       wp.vec4b(mask_p0_0, mask_p0_1, mask_p0_2, mask_p0_3),
       )
+
+
+@wp.func
+def _clip_quad(
+    subject_quad: mat43f,
+    subject_normal: wp.vec3,
+
+    clipping_quad: mat43f,
+    clipping_normal: wp.vec3,
+
+): #  -> tuple[mat83f, vec8b]
+  """Clips a subject quad against a clipping quad.
+  Serial implementation.
+  """
+
+  subject_clipped_p0, subject_clipped_p1, subject_mask = _clip_edge_to_quad(subject_quad, clipping_quad, clipping_normal)
+  clipping_proj = _project_quad_onto_plane(clipping_quad, clipping_normal, subject_normal, subject_quad[0])
+  clipping_clipped_p0, clipping_clipped_p1, clipping_mask = _clip_edge_to_quad(clipping_proj, subject_quad, subject_normal)
+
+  clipped_points_p0 = mat38f(
+      subject_clipped_p0[0], subject_clipped_p0[1], subject_clipped_p0[2], subject_clipped_p0[3],
+      clipping_clipped_p0[0], clipping_clipped_p0[1], clipping_clipped_p0[2], clipping_clipped_p0[3],
+    )
+  clipped_points_p1 = mat38f(
+      subject_clipped_p1[0], subject_clipped_p1[1], subject_clipped_p1[2], subject_clipped_p1[3],
+      clipping_clipped_p1[0], clipping_clipped_p1[1], clipping_clipped_p1[2], clipping_clipped_p1[3],
+    )
+  clipped_masks = vec8b(
+      subject_mask[0], subject_mask[1], subject_mask[2], subject_mask[3],
+      clipping_mask[0], clipping_mask[1], clipping_mask[2], clipping_mask[3],
+      )
+  return wp.transpose(clipped_points_p0), wp.transpose(clipped_points_p1), clipped_masks
   
 
+# @wp.kernel
+# def _manifold_points_kernel(
+#     poly: wp.array(dtype=wp.vec3, ndim=2),
+#     poly_mask: wp.array(dtype=wp.int32, ndim=2),
+#     poly_norm: wp.array(dtype=wp.vec3, ndim=1),
+#     n_poly_verts: wp.array(dtype=wp.int32, ndim=1),
+#     dist_mask: wp.array(dtype=wp.float32, ndim=2),
+#     # outputs
+#     points: wp.array(dtype=wp.int32, ndim=2),
+#   ):
+#   poly_idx = wp.tid()
+#   polygon = poly[poly_idx]
+# 
+#   n_points = n_poly_verts[poly_idx]
+# 
+#   for i in range(n_points):
+#     dist_mask[poly_idx, i] = wp.select(poly_mask[poly_idx, i], -1e6, 0.0)
+# 
+#   a_idx = _argmax(dist_mask[poly_idx])
+#   a = polygon[a_idx]
+# 
+#   # choose point b furthest from a
+#   b_dist = wp.float32(-1e6)
+#   b_idx = wp.int32(0)
+#   for i in range(n_points):
+#     b_cand_dist = wp.length_sq(a-polygon[i]) + dist_mask[poly_idx, i]
+#     if b_cand_dist > b_dist:
+#         b_idx = i
+#         b_dist = b_cand_dist
+# 
+#   b = polygon[b_idx]
+# 
+#   # choose point c furthest along the axis orthogonal to (a-b)
+#   c_dist = wp.float32(-1e6)
+#   c_idx = wp.int32(0)
+#   ab = wp.cross(poly_norm[poly_idx], a - b)
+#   for i in range(n_points):
+#     ap = a - polygon[i]
+#     c_cand_dist = wp.abs(wp.dot(ap, ab)) + dist_mask[poly_idx, i]
+#     if c_cand_dist > c_dist:
+#         c_idx = i
+#         c_dist = c_cand_dist
+# 
+#   c = polygon[c_idx]
+# 
+#   # choose point d furthest from the other two triangle edges
+#   d_dist = wp.float32(-1e6)
+#   d_idx = wp.int32(0)
+#   ac = wp.cross(poly_norm[poly_idx], a - c)
+#   bc = wp.cross(poly_norm[poly_idx], b - c)
+#   for i in range(n_points):
+#     dist_bp = wp.abs(wp.dot(b-polygon[i], bc)) + dist_mask[poly_idx, i]
+#     dist_ap = wp.abs(wp.dot(a-polygon[i], ac)) + dist_mask[poly_idx, i]
+#     d_cand_dist = dist_bp + dist_ap
+#     if d_cand_dist > d_dist:
+#         d_idx = i
+#         d_dist = d_cand_dist
+# 
+#   points[poly_idx, 0] = a_idx
+#   points[poly_idx, 1] = b_idx
+#   points[poly_idx, 2] = c_idx
+#   points[poly_idx, 3] = d_idx
 
-@wp.kernel
-def _project_poly_onto_poly_plane(
-    poly1: wp.array(dtype=wp.vec3, ndim=2),
-    poly1_length: wp.array(dtype=wp.int32, ndim=1),
-    poly1_norm: wp.array(dtype=wp.vec3, ndim=1),
-    poly2: wp.array(dtype=wp.vec3, ndim=2),
-    poly2_norm: wp.array(dtype=wp.vec3, ndim=1),
-    # outputs
-    new_poly: wp.array(dtype=wp.vec3, ndim=2),
-):
-  """Projects poly1 onto the poly2 plane along poly2's normal."""
-  poly_idx = wp.tid()
-  d = wp.dot(poly2[poly_idx, 0], poly2_norm[poly_idx])
-  denom = wp.dot(poly1_norm[poly_idx], poly2_norm[poly_idx])
-  for i in range(poly1_length[poly_idx]):
-    t = (d - wp.dot(poly1[poly_idx, i], poly2_norm[poly_idx])) / (denom + wp.select(denom == 0.0, 0.0, 1e-6))
-    new_poly[poly_idx, i] = poly1[poly_idx, i] + t * poly1_norm[poly_idx]
+
+# TODO(ca): sparse, tiling variant for large point counts
+def _manifold_points(
+    poly: wp.array(dtype=wp.vec3, ndim=2),
+    poly_mask: wp.array(dtype=wp.int32, ndim=2),
+    poly_norm: wp.array(dtype=wp.vec3, ndim=1),
+    n_poly_verts: wp.array(dtype=wp.int32, ndim=1),
+) -> wp.array(dtype=wp.vec3, ndim=2):
+  """Chooses four points on the polygon with approximately maximal area."""
+  n_polys = poly.shape[0]
+  point_idx = wp.array(dtype=wp.int32, shape=(n_polys, 4))
+  dist_mask = wp.empty(poly.shape, dtype=wp.float32)
+
+  wp.launch(
+    kernel=_manifold_points_kernel,
+    dim=n_polys,
+    inputs=[poly, poly_mask, poly_norm, n_poly_verts, dist_mask],
+    outputs=[point_idx],
+  )
+  return point_idx
 
 
-@wp.kernel
-def _project_points_onto_plane(
-    points: wp.array(dtype=wp.vec3, ndim=2),
-    n_points: wp.array(dtype=wp.int32, ndim=1),
-    plane_point: wp.array(dtype=wp.vec3, ndim=1),
-    plane_normal: wp.array(dtype=wp.vec3, ndim=1),
-    # outputs
-    projected_points: wp.array(dtype=wp.vec3, ndim=2),
-):
-  """Projects points onto a plane using the plane normal."""
-  row_idx = wp.tid()
-  for i in range(n_points[row_idx]):
-    dist = wp.dot(points[row_idx, i] - plane_point[row_idx], plane_normal[row_idx])
-    projected_points[row_idx, i] = points[row_idx, i] - dist * plane_normal[row_idx]
-
-
-@wp.kernel
-def _points_in_front_of_plane(
-    points: wp.array(dtype=wp.vec3, ndim=2),
-    n_points: wp.array(dtype=wp.int32, ndim=1),
-    plane_pt: wp.array(dtype=wp.vec3, ndim=1),
-    plane_normal: wp.array(dtype=wp.vec3, ndim=1),
-    # outputs
-    mask: wp.array(dtype=wp.int32, ndim=2),
-):
-  """Checks if a set of points are strictly in front of a plane."""
-  idx = wp.tid()
-  for i in range(n_points[idx]):
-    dist = wp.dot(points[idx, i] - plane_pt[idx], plane_normal[idx])
-    mask[idx, i] = wp.int32(dist > 1e-6)
-
-
-def _clip(
+def _create_contact_manifold(
     clipping_poly: wp.array(dtype=wp.vec3, ndim=2),
     clipping_poly_length: wp.array(dtype=wp.int32, ndim=1),
     clipping_normal: wp.array(dtype=wp.vec3, ndim=1),
     subject_poly: wp.array(dtype=wp.vec3, ndim=2),
     subject_poly_length: wp.array(dtype=wp.int32, ndim=1),
     subject_normal: wp.array(dtype=wp.vec3, ndim=1),
-) -> tuple[wp.array(dtype=wp.vec3, ndim=2), wp.array(dtype=wp.int32, ndim=2), wp.array(dtype=wp.int32, ndim=1)]:
-  """Clips a subject polygon against a clipping polygon.
+    sep_axis: wp.array(dtype=wp.vec3, ndim=1),
+) -> tuple[
+    wp.array(dtype=wp.vec3, ndim=1),
+    wp.array(dtype=wp.vec3, ndim=1),
+    wp.array(dtype=wp.vec3, ndim=1), ]:
+  """Creates a contact manifold between pairs of convex polygons.
 
-  A parallelized clipping algorithm for convex polygons. The result is a sequence of
-  vertices on the clipped subject polygon in the subject polygon plane.
+  The polygon faces are expected to have a counter clockwise winding order so
+  that clipping plane normals point away from the polygon center.
 
   Args:
-    clipping_poly: the polygon that we use to clip the subject polygon against
+    clipping_poly: the reference polygon to clip the contact against.
     clipping_poly_length: number of vertices in the clipping polygon
-    clipping_normal: normal of the clipping polygon
-    subject_poly: the polygon that gets clipped
+    clipping_normal: the clipping polygon normal.
+    subject_poly: the subject polygon to clip contacts onto.
     subject_poly_length: number of vertices in the subject polygon
-    subject_normal: normal of the subject polygon
+    subject_normal: the subject polygon normal.
+    sep_axis: the separating axis
 
   Returns:
-    clipped_pts: points on the clipped polygon
-    mask: True if a point is in the clipping polygon, False otherwise
-    clipped_poly_length: number of points in the clipped poly
+    tuple of dist, pos, and normal
   """
-  n_polys = subject_poly.shape[0]
-  n_subject_verts = subject_poly.shape[1]
-  n_clipping_verts = clipping_poly.shape[1]
-  n_total_verts = n_subject_verts + n_clipping_verts
-
-  # Clip all edges of the subject poly against clipping side planes.
-  clipped_points = wp.empty((n_polys, 2*n_total_verts), dtype=wp.vec3)
-
-  clipped_poly_length = wp.empty_like(clipping_poly_length)
-  masks = wp.empty((n_polys, 2*n_total_verts), dtype=wp.int32)
-  clipped_points_offset_zero = wp.zeros((1), dtype=wp.int32)
-  wp.launch(
-      kernel=_clip_edge_to_poly,
-      dim=subject_poly.shape,
-      inputs=[subject_poly, subject_poly_length, clipping_poly, clipping_poly_length, clipping_normal, clipped_points_offset_zero],
-      outputs=[clipped_points, masks, clipped_poly_length],
+  # Clip the subject (incident) face onto the clipping (reference) face.
+  # The incident points are clipped points on the subject polygon.
+  poly_incident, mask, clipped_poly_length = _clip(
+    clipping_poly,
+    clipping_poly_length,
+    clipping_normal,
+    subject_poly,
+    subject_poly_length,
+    subject_normal,
   )
 
-  # Project the clipping poly onto the subject plane.
-  clipping_poly_s = wp.empty_like(clipping_poly)
+  # The reference points are clipped points on the clipping polygon.
+  poly_ref = wp.empty_like(poly_incident)
   wp.launch(
-      kernel=_project_poly_onto_poly_plane,
-      dim=subject_poly.shape[0],
-      inputs=[clipping_poly, clipped_poly_length, clipping_normal, subject_poly, subject_normal],
-      outputs=[clipping_poly_s],
+    kernel=_project_points_onto_plane,
+    dim=poly_incident.shape[0],
+    inputs=[poly_incident, clipping_poly_length, clipping_poly[:,0], clipping_normal],
+    outputs=[poly_ref],
   )
 
-  # Clip all edges of the clipping poly against subject planes.
+  behind_clipping_plane = wp.empty_like(mask)
   wp.launch(
-      kernel=_clip_edge_to_poly,
-      dim=subject_poly.shape,
-      inputs=[clipping_poly_s, clipping_poly_length, subject_poly, subject_poly_length, subject_normal, subject_poly_length],
-      outputs=[clipped_points, masks, clipped_poly_length],
+    kernel=_points_in_front_of_plane,
+    dim=poly_incident.shape[0],
+    inputs=[poly_incident, clipping_poly_length, clipping_poly[:,0], clipping_normal],
+    outputs=[behind_clipping_plane],
   )
 
-  return clipped_points, masks, clipped_poly_length
+  wp.launch(
+    kernel=_and_mask,
+    dim=mask.shape[0],
+    inputs=[mask, behind_clipping_plane],
+    outputs=[mask],
+  )
+
+  # Choose four contact points.
+  best = _manifold_points(poly_ref, mask, clipping_normal, clipped_poly_length)
+
+  contact_pts = wp.empty((poly_ref.shape[0], 4), dtype=wp.vec3)
+  dist = wp.empty((poly_ref.shape[0], 4), dtype=wp.float32)
+  penetration_dir = wp.empty_like(poly_ref)
+
+  wp.launch(
+    kernel=_create_manifold_post_process,
+    dim=best.shape[0],
+    inputs=[poly_ref, poly_incident, clipping_normal, best, mask, clipped_poly_length, sep_axis],
+    outputs=[contact_pts, dist, penetration_dir],
+  )
+  return dist, contact_pts, normal
 
 
+@wp.kernel
+def _and_mask(
+    a: wp.array(dtype=wp.int32, ndim=2),
+    b: wp.array(dtype=wp.int32, ndim=2),
+    # outputs
+    result: wp.array(dtype=wp.int32, ndim=2),
+):
+  """Computes the element-wise AND of two masks. Output mask can be the same as one of the inputs."""
+  row = wp.tid()
+  for j in range(a.shape[1]):
+    result[row, j] = wp.int32(a[row, j] and b[row, j])
+
+
+@wp.kernel
+def _create_manifold_post_process(
+    poly_ref: wp.array(dtype=wp.vec3, ndim=2),
+    poly_incident: wp.array(dtype=wp.vec3, ndim=2),
+    clipping_normal: wp.array(dtype=wp.vec3, ndim=2),
+    best: wp.array(dtype=wp.int32, ndim=2),
+    mask: wp.array(dtype=wp.int32, ndim=2),
+    n_poly_verts: wp.array(dtype=wp.int32, ndim=1),
+    sep_axis: wp.array(dtype=wp.vec3, ndim=1),
+    # outputs
+    contact_pts: wp.array(dtype=wp.vec3, ndim=2),
+    dist: wp.array(dtype=wp.float32, ndim=2),
+    normal: wp.array(dtype=wp.vec3, ndim=2),
+):
+  poly_idx = wp.tid()
+  n_verts = n_poly_verts[poly_idx]
+  ref = poly_ref[poly_idx, 0]
+  for i in range(4):
+    point_idx = best[poly_idx, i]
+    contact_pts[poly_idx, i] = poly_ref[poly_idx, point_idx]
+    penetration_dir = poly_incident[poly_idx, point_idx] - poly_ref[poly_idx, point_idx]
+    penetration = wp.dot(penetration_dir, -clipping_normal[poly_idx, point_idx])
+
+    dist[poly_idx, i] = wp.select(mask[poly_idx, point_idx], 1.0, -penetration)
+    normal[poly_idx, i] = -sep_axis[poly_idx]
