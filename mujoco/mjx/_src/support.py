@@ -27,6 +27,82 @@ def is_sparse(m: mujoco.MjModel):
   return m.opt.jacobian == mujoco.mjtJacobian.mjJAC_SPARSE
 
 
+# https://nvidia.github.io/warp/codegen.html#function-closures
+def create_tiled_mul(tilesize):
+  @wp.kernel
+  def mul(m: Model, d: Data, leveladr: int, res: array3df, vec: array3df):
+    worldid, nodeid = wp.tid()
+    dofid = m.qLD_tile[leveladr + nodeid]
+    qM_tile = wp.tile_load(
+      d.qM[worldid], shape=(tilesize, tilesize), offset=(dofid, dofid)
+    )
+    vec_tile = wp.tile_load(vec[worldid], shape=(tilesize, 1), offset=(dofid, 0))
+    res_tile = wp.tile_zeros(shape=(tilesize, 1), dtype=wp.float32)
+    wp.tile_matmul(qM_tile, vec_tile, res_tile)
+    wp.tile_store(res[worldid], res_tile, offset=(dofid, 0))
+
+  return mul
+
+
+@wp.kernel
+def _mul_m_sparse_diag(
+  m: Model,
+  d: Data,
+  res: wp.array(ndim=2, dtype=wp.float32),
+  vec: wp.array(ndim=2, dtype=wp.float32),
+):
+  worldid, dofid = wp.tid()
+  res[worldid, dofid] = d.qM[worldid, 0, m.dof_Madr[dofid]] * vec[worldid, dofid]
+
+
+@wp.kernel
+def _mul_m_sparse_ij(
+  m: Model,
+  d: Data,
+  res: wp.array(ndim=2, dtype=wp.float32),
+  vec: wp.array(ndim=2, dtype=wp.float32),
+):
+  worldid, elementid = wp.tid()
+  i = m.qM_mulm_i[elementid]
+  j = m.qM_mulm_j[elementid]
+  madr_ij = m.qM_madr_ij[elementid]
+
+  qM = d.qM[worldid, 0, madr_ij]
+
+  wp.atomic_add(res[worldid], i, qM * vec[worldid, j])
+  wp.atomic_add(res[worldid], j, qM * vec[worldid, i])
+
+
+_cache = {}
+
+
+def cache_get(key: int):
+  """Get an object from the cache by key.
+
+  Args:
+    key: Integer key to look up in cache
+
+  Returns:
+    The cached object if found, None if key not present in cache
+  """
+  return _cache.get(key)  # .get() returns None if key not found
+
+
+def cache_put(key: int, obj):
+  """Put an object in the cache with given key.
+
+  Args:
+    key: Integer key to store object under
+    obj: Object to cache
+  """
+  _cache[key] = obj
+
+
+def cache_clear():
+  """Clear all objects from the cache."""
+  _cache.clear()
+
+
 def mul_m(
   m: Model,
   d: Data,
@@ -39,20 +115,14 @@ def mul_m(
 
     def tile_mul(adr: int, size: int, tilesize: int):
       # TODO(team): speed up kernel compile time (14s on 2023 Macbook Pro)
-      @wp.kernel
-      def mul(m: Model, d: Data, leveladr: int, res: array3df, vec: array3df):
-        worldid, nodeid = wp.tid()
-        dofid = m.qLD_tile[leveladr + nodeid]
-        qM_tile = wp.tile_load(
-          d.qM[worldid], shape=(tilesize, tilesize), offset=(dofid, dofid)
-        )
-        vec_tile = wp.tile_load(vec[worldid], shape=(tilesize, 1), offset=(dofid, 0))
-        res_tile = wp.tile_zeros(shape=(tilesize, 1), dtype=wp.float32)
-        wp.tile_matmul(qM_tile, vec_tile, res_tile)
-        wp.tile_store(res[worldid], res_tile, offset=(dofid, 0))
+
+      mul_kernel = cache_get(tilesize)
+      if mul_kernel is None:
+        mul_kernel = create_tiled_mul(tilesize)
+        cache_put(tilesize, mul_kernel)
 
       wp.launch_tiled(
-        mul,
+        mul_kernel,
         dim=(d.nworld, size),
         inputs=[
           m,
@@ -73,35 +143,7 @@ def mul_m(
       tile_mul(beg, end - beg, int(qLD_tilesize[i]))
 
   else:
-
-    @wp.kernel
-    def _mul_m_sparse_diag(
-      m: Model,
-      d: Data,
-      res: wp.array(ndim=2, dtype=wp.float32),
-      vec: wp.array(ndim=2, dtype=wp.float32),
-    ):
-      worldid, dofid = wp.tid()
-      res[worldid, dofid] = d.qM[worldid, 0, m.dof_Madr[dofid]] * vec[worldid, dofid]
-
     wp.launch(_mul_m_sparse_diag, dim=(d.nworld, m.nv), inputs=[m, d, res, vec])
-
-    @wp.kernel
-    def _mul_m_sparse_ij(
-      m: Model,
-      d: Data,
-      res: wp.array(ndim=2, dtype=wp.float32),
-      vec: wp.array(ndim=2, dtype=wp.float32),
-    ):
-      worldid, elementid = wp.tid()
-      i = m.qM_mulm_i[elementid]
-      j = m.qM_mulm_j[elementid]
-      madr_ij = m.qM_madr_ij[elementid]
-
-      qM = d.qM[worldid, 0, madr_ij]
-
-      wp.atomic_add(res[worldid], i, qM * vec[worldid, j])
-      wp.atomic_add(res[worldid], j, qM * vec[worldid, i])
 
     wp.launch(
       _mul_m_sparse_ij, dim=(d.nworld, m.qM_madr_ij.size), inputs=[m, d, res, vec]
