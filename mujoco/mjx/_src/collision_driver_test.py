@@ -38,7 +38,6 @@ class ConvexTest(absltest.TestCase):
   def test_box_plane(self):
     """Tests box collision with a plane."""
     m = mujoco.MjModel.from_xml_string(self._BOX_PLANE)
-    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
 
