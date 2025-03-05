@@ -252,7 +252,9 @@ def create_collision_function_kernel(type1, type2):
       d.geom_xmat[g2],
     )
 
-    index, ncon = wp.static(_collision_functions[(type1, type2)])(geom1, geom2, worldid, d)
+    index, ncon = wp.static(_collision_functions[(type1, type2)])(
+      geom1, geom2, worldid, d
+    )
     for i in range(ncon):
       d.contact.worldid[index + i] = worldid
       d.contact.geom[index + i] = geoms

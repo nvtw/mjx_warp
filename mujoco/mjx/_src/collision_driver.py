@@ -469,6 +469,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
 
 ###########################################################################################3
 
+
 def broadphase(m: Model, d: Data):
   # broadphase collision detection
 
