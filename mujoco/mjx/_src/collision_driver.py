@@ -101,7 +101,6 @@ def overlap(
 
 @wp.kernel
 def broadphase_project_boxes_onto_sweep_direction_kernel(
-  m: Model,
   d: Data,
 ):
   worldId, i = wp.tid()
@@ -380,7 +379,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[m, d],
+    inputs=[d],
   )
 
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
