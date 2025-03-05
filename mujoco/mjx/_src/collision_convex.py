@@ -451,70 +451,6 @@ def _clip_quad(
   return clipped, mask
 
 
-# @wp.kernel
-# def _manifold_points_kernel(
-#     poly: wp.array(dtype=wp.vec3, ndim=2),
-#     poly_mask: wp.array(dtype=wp.int32, ndim=2),
-#     poly_norm: wp.array(dtype=wp.vec3, ndim=1),
-#     n_poly_verts: wp.array(dtype=wp.int32, ndim=1),
-#     dist_mask: wp.array(dtype=wp.float32, ndim=2),
-#     # outputs
-#     points: wp.array(dtype=wp.int32, ndim=2),
-#   ):
-#   poly_idx = wp.tid()
-#   polygon = poly[poly_idx]
-# 
-#   n_points = n_poly_verts[poly_idx]
-# 
-#   for i in range(n_points):
-#     dist_mask[poly_idx, i] = wp.select(poly_mask[poly_idx, i], -1e6, 0.0)
-# 
-#   a_idx = _argmax(dist_mask[poly_idx])
-#   a = polygon[a_idx]
-# 
-#   # choose point b furthest from a
-#   b_dist = wp.float32(-1e6)
-#   b_idx = wp.int32(0)
-#   for i in range(n_points):
-#     b_cand_dist = wp.length_sq(a-polygon[i]) + dist_mask[poly_idx, i]
-#     if b_cand_dist > b_dist:
-#         b_idx = i
-#         b_dist = b_cand_dist
-# 
-#   b = polygon[b_idx]
-# 
-#   # choose point c furthest along the axis orthogonal to (a-b)
-#   c_dist = wp.float32(-1e6)
-#   c_idx = wp.int32(0)
-#   ab = wp.cross(poly_norm[poly_idx], a - b)
-#   for i in range(n_points):
-#     ap = a - polygon[i]
-#     c_cand_dist = wp.abs(wp.dot(ap, ab)) + dist_mask[poly_idx, i]
-#     if c_cand_dist > c_dist:
-#         c_idx = i
-#         c_dist = c_cand_dist
-# 
-#   c = polygon[c_idx]
-# 
-#   # choose point d furthest from the other two triangle edges
-#   d_dist = wp.float32(-1e6)
-#   d_idx = wp.int32(0)
-#   ac = wp.cross(poly_norm[poly_idx], a - c)
-#   bc = wp.cross(poly_norm[poly_idx], b - c)
-#   for i in range(n_points):
-#     dist_bp = wp.abs(wp.dot(b-polygon[i], bc)) + dist_mask[poly_idx, i]
-#     dist_ap = wp.abs(wp.dot(a-polygon[i], ac)) + dist_mask[poly_idx, i]
-#     d_cand_dist = dist_bp + dist_ap
-#     if d_cand_dist > d_dist:
-#         d_idx = i
-#         d_dist = d_cand_dist
-# 
-#   points[poly_idx, 0] = a_idx
-#   points[poly_idx, 1] = b_idx
-#   points[poly_idx, 2] = c_idx
-#   points[poly_idx, 3] = d_idx
-
-
 # TODO(ca): sparse, tiling variant for large point counts
 @wp.func
 def _manifold_points(
@@ -608,41 +544,6 @@ def _create_contact_manifold(
   return dist, contact_pts
 
 
-@wp.kernel
-def _and_mask(
-    a: wp.array(dtype=wp.int32, ndim=2),
-    b: wp.array(dtype=wp.int32, ndim=2),
-    # outputs
-    result: wp.array(dtype=wp.int32, ndim=2),
-):
-  """Computes the element-wise AND of two masks. Output mask can be the same as one of the inputs."""
-  row = wp.tid()
-  for j in range(a.shape[1]):
-    result[row, j] = wp.int32(a[row, j] and b[row, j])
 
 
-@wp.kernel
-def _create_manifold_post_process(
-    poly_ref: wp.array(dtype=wp.vec3, ndim=2),
-    poly_incident: wp.array(dtype=wp.vec3, ndim=2),
-    clipping_normal: wp.array(dtype=wp.vec3, ndim=2),
-    best: wp.array(dtype=wp.int32, ndim=2),
-    mask: wp.array(dtype=wp.int32, ndim=2),
-    n_poly_verts: wp.array(dtype=wp.int32, ndim=1),
-    sep_axis: wp.array(dtype=wp.vec3, ndim=1),
-    # outputs
-    contact_pts: wp.array(dtype=wp.vec3, ndim=2),
-    dist: wp.array(dtype=wp.float32, ndim=2),
-    normal: wp.array(dtype=wp.vec3, ndim=2),
-):
-  poly_idx = wp.tid()
-  n_verts = n_poly_verts[poly_idx]
-  ref = poly_ref[poly_idx, 0]
-  for i in range(4):
-    point_idx = best[poly_idx, i]
-    contact_pts[poly_idx, i] = poly_ref[poly_idx, point_idx]
-    penetration_dir = poly_incident[poly_idx, point_idx] - poly_ref[poly_idx, point_idx]
-    penetration = wp.dot(penetration_dir, -clipping_normal[poly_idx, point_idx])
 
-    dist[poly_idx, i] = wp.select(mask[poly_idx, point_idx], 1.0, -penetration)
-    normal[poly_idx, i] = -sep_axis[poly_idx]
