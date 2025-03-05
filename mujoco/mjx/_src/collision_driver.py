@@ -470,16 +470,6 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
 
 ###########################################################################################3
 
-
-def init_contact(m: Model, d: Data):
-  # initialize output data
-  wp.launch(
-    kernel=init_contact_kernel,
-    dim=(d.nconmax),
-    inputs=[d.contact],
-  )
-
-
 def broadphase(m: Model, d: Data):
   # broadphase collision detection
 
