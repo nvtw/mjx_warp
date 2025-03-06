@@ -36,7 +36,7 @@ def narrowphase(m: Model, d: Data):
 LARGE_VAL = 1e6
 
 # BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
-# 
+#
 # BOX_FACES = np.array([
 #       0, 4, 5, 1,
 #       0, 2, 6, 4,
@@ -219,17 +219,19 @@ def collision_axis_tiled(
   face_supports_red = wp.tile_reduce(reduce_support_axis, face_supports)
   edge_supports_red = wp.tile_reduce(reduce_support_axis, edge_supports)
 
-  best_face_idx = wp.tile_broadcast(wp.tile_map(axis_best_idx, face_supports_red), shape=(1, 21))
-  print(best_face_idx)
-  # best_face_dist = wp.untile(wp.tile_broadcast(wp.tile_map(axis_best_dist, face_supports_red), shape=(1, 21)))
+  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(21,)))
+  edge = wp.untile(wp.tile_broadcast(face_supports_red, shape=(21,)))
 
-  # best_edge_idx = wp.untile(wp.tile_broadcast(wp.tile_map(axis_best_idx, edge_supports_red), shape=(1, 21)))
-  # best_edge_dist = wp.untile(wp.tile_broadcast(wp.tile_map(axis_best_dist, edge_supports_red), shape=(1, 21)))
+  if axis_idx > 0:
+    return wp.vec3(0.0), 0
 
-  # # TODO(ca): handle untile & tile usage
+  face_axis, _1 = get_axis(wp.int32(face.best_idx), R)
+  best_axis = wp.vec3(face_axis)
 
-  # if axis_idx > 0:
-  #   return
+  if edge.best_dist < face.best_dist:
+    edge_axis, _2 = get_axis(wp.int32(edge.best_idx), R)
+    if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
+      best_axis = edge_axis
 
   # face_axis = get_axis(best_face_idx)[0]
   # best_axis = wp.vec3(face_axis)
@@ -240,7 +242,7 @@ def collision_axis_tiled(
   #     best_axis = edge_axis
 
   # # get the (reference) face most aligned with the separating axis
-  return wp.vec3(0.0), 0
+  return best_axis, 0
 
 
 @wp.func
