@@ -173,6 +173,21 @@ class AxisSupport:
 
 
 @wp.func
+def axis_best_idx(a: AxisSupport) -> wp.int8:
+  return a.best_idx
+
+
+@wp.func
+def axis_best_sign(a: AxisSupport) -> wp.int8:
+  return a.best_sign
+
+
+@wp.func
+def axis_best_dist(a: AxisSupport) -> wp.float32:
+  return a.best_dist
+
+
+@wp.func
 def reduce_support_axis(a: AxisSupport, b: AxisSupport):
   return wp.select(a.best_dist > b.best_dist, a, b)
 
@@ -185,7 +200,7 @@ def collision_axis_tiled(
   b: Box,
   R: wp.mat33,
   axis_idx: wp.int32,
-) -> tuple[wp.vec3, wp.int8]:
+):
   """Finds the axis of minimum separation or maximum overlap.
   Returns:
     best_axis: vec3
@@ -201,26 +216,31 @@ def collision_axis_tiled(
   face_supports = wp.tile_view(supports, offset=(0,), shape=(12,))
   edge_supports = wp.tile_view(supports, offset=(12,), shape=(9,))
 
-  # TODO(ca): handle untile & tile usage
-  best_face = wp.untile(
-    wp.tile_broadcast(wp.tile_reduce(reduce_support_axis, face_supports), shape=(1, 21))
-  )
-  best_edge = wp.untile(
-    wp.tile_broadcast(wp.tile_reduce(reduce_support_axis, edge_supports), shape=(1, 21))
-  )
+  face_supports_red = wp.tile_reduce(reduce_support_axis, face_supports)
+  edge_supports_red = wp.tile_reduce(reduce_support_axis, edge_supports)
 
-  if axis_idx > 0:
-    return
+  best_face_idx = wp.tile_broadcast(wp.tile_map(axis_best_idx, face_supports_red), shape=(1, 21))
+  print(best_face_idx)
+  # best_face_dist = wp.untile(wp.tile_broadcast(wp.tile_map(axis_best_dist, face_supports_red), shape=(1, 21)))
 
-  face_axis = get_axis(best_face.best_idx)
-  best_axis = wp.vec3(face_axis)
-  if best_edge.dist < best_face.dist:
-    edge_axis = get_axis(best_edge.idx)
-    if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
-      best_axis = edge_axis
+  # best_edge_idx = wp.untile(wp.tile_broadcast(wp.tile_map(axis_best_idx, edge_supports_red), shape=(1, 21)))
+  # best_edge_dist = wp.untile(wp.tile_broadcast(wp.tile_map(axis_best_dist, edge_supports_red), shape=(1, 21)))
 
-  # get the (reference) face most aligned with the separating axis
-  return wp.vec3(0.0)
+  # # TODO(ca): handle untile & tile usage
+
+  # if axis_idx > 0:
+  #   return
+
+  # face_axis = get_axis(best_face_idx)[0]
+  # best_axis = wp.vec3(face_axis)
+
+  # if best_edge_dist < best_face_dist:
+  #   edge_axis = get_axis(best_edge_idx)[0]
+  #   if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
+  #     best_axis = edge_axis
+
+  # # get the (reference) face most aligned with the separating axis
+  return wp.vec3(0.0), 0
 
 
 @wp.func
@@ -268,21 +288,21 @@ def box_box_kernel(
     # - faces compute from verts
 
     # box-box implementation
-    sep_axis, sep_axis_idx = collision_axis_tiled(m, d, a, b, rot_atob, axis_idx)
-    dist, pos, normal = create_contact_manifold(m, d, axis_idx)
+    collision_axis_tiled(m, d, a, b, rot_atob, axis_idx)
+    # dist, pos, normal = create_contact_manifold(m, d, axis_idx)
 
-    # generate contact w/ 1 thread per pair
-    if axis_idx != 0:
-      return
+    # # generate contact w/ 1 thread per pair
+    # if axis_idx != 0:
+    #   return
 
-    # if contact
-    if dist < 0:
-      contact_idx = wp.atomic_add(d.contact_counter, 0, 1)
-      # TODO(ca): multi-dimensional contacts
-      d.contact.dist[contact_idx] = dist
-      d.contact.pos[contact_idx] = b_pos + b_mat @ pos
-      d.contact.frame[contact_idx] = make_frame(b_mat @ normal)
-      d.contact.worldid[contact_idx] = world_id
+    # # if contact
+    # if dist < 0:
+    #   contact_idx = wp.atomic_add(d.contact_counter, 0, 1)
+    #   # TODO(ca): multi-dimensional contacts
+    #   d.contact.dist[contact_idx] = dist
+    #   d.contact.pos[contact_idx] = b_pos + b_mat @ pos
+    #   d.contact.frame[contact_idx] = make_frame(b_mat @ normal)
+    #   d.contact.worldid[contact_idx] = world_id
 
 
 def box_box(
@@ -446,7 +466,7 @@ def _clip_quad(
   subject_normal: wp.vec3,
   clipping_quad: mat43f,
   clipping_normal: wp.vec3,
-):  #  -> tuple[mat83f, vec8b]
+) -> tuple[mat83f, vec8b]:
   """Clips a subject quad against a clipping quad.
   Serial implementation.
   """
@@ -539,7 +559,7 @@ def _create_contact_manifold(
   subject_quad: mat43f,
   subject_normal: wp.vec3,
   sep_axis: wp.vec3,
-):  # -> tuple[ wp.vec3, wp.vec3, wp.vec3]
+) -> tuple[wp.vec3, wp.vec3, wp.vec3]:
   # Clip the subject (incident) face onto the clipping (reference) face.
   # The incident points are clipped points on the subject polygon.
   incident, mask = _clip_quad(
@@ -609,7 +629,7 @@ _MODEL = """
 </mujoco>
 """
 
-import mujoco 
+import mujoco
 from mujoco import mjx
 
 m = mujoco.MjModel.from_xml_string(_MODEL)
