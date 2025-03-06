@@ -35,24 +35,16 @@ def narrowphase(m: Model, d: Data):
 
 LARGE_VAL = 1e6
 
-BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
-
-BOX_FACES = np.array([
-      0, 4, 5, 1,
-      0, 2, 6, 4,
-      6, 7, 5, 4,
-      2, 3, 7, 6,
-      1, 5, 7, 3,
-      0, 1, 3, 2,
-  ]).reshape((-1, 4))  # fmt: skip
-
-BOX_NORMALS = [
-     [ 0, -1,  0],
-     [ 0,  0, -1],
-     [ 1,  0,  0],
-     [ 0,  1,  0],
-     [ 0,  0,  1],
-     [-1,  0,  0]]  # fmt: skip
+# BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
+# 
+# BOX_FACES = np.array([
+#       0, 4, 5, 1,
+#       0, 2, 6, 4,
+#       6, 7, 5, 4,
+#       2, 3, 7, 6,
+#       1, 5, 7, 3,
+#       0, 1, 3, 2,
+#   ]).reshape((-1, 4))  # fmt: skip
 
 
 class mat83f(wp.types.matrix(shape=(8, 3), dtype=wp.float32)):
@@ -81,6 +73,17 @@ class vec8b(wp.types.vector(length=8, dtype=wp.int8)):
 
 class vec16b(wp.types.vector(length=16, dtype=wp.int8)):
   pass
+
+
+@wp.func
+def box_normals(i: int) -> wp.vec3:
+  direction = wp.select(i < 3, 1.0, -1.0)
+  mod = i % 3
+  if mod == 0:
+    return wp.vec3(0.0, direction, 0.0)
+  if mod == 1:
+    return wp.vec3(0.0, 0.0, direction)
+  return wp.vec3(-direction, 0.0, 0.0)
 
 
 @wp.struct
@@ -118,10 +121,10 @@ def get_axis(
   Axes 0-12 are face normals of boxes a & b
   Axes 12-21 are edge cross products."""
   if axis_idx < 6:  # a faces
-    axis = R @ wp.vec3(BOX_NORMALS[axis_idx])
+    axis = R @ wp.vec3(box_normals(axis_idx))
     is_degenerate = False
   elif axis_idx < 12:  # b faces
-    axis = wp.vec3(BOX_NORMALS[axis_idx - 6])
+    axis = wp.vec3(box_normals(axis_idx - 6))
     is_degenerate = False
   else:  # edges cross products
     assert axis_idx < 21
@@ -141,7 +144,7 @@ def get_axis(
 @wp.func
 def get_box_axis_support(
   axis: wp.vec3, degenerate_axis: bool, a: Box, b: Box
-) -> tuple[wp.float32, bool]:
+) -> tuple[wp.float32, wp.int32]:
   """Get the overlap (or separating distance if negative) along `axis`, and the sign."""
   axis_d = wp.vec3d(axis)
   support_a_max, support_b_max = wp.float32(-LARGE_VAL), wp.float32(-LARGE_VAL)
