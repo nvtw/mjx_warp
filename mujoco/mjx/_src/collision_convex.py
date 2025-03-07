@@ -24,6 +24,14 @@ from .types import NUM_GEOM_TYPES
 from .support import where
 from .support import all_same
 from .support import any_different
+from .collision_functions import get_info
+from .collision_functions import GeomPlane
+from .collision_functions import GeomSphere
+from .collision_functions import GeomCapsule
+from .collision_functions import GeomEllipsoid
+from .collision_functions import GeomCylinder
+from .collision_functions import GeomBox
+from .collision_functions import GeomMesh
 
 from typing import Any
 
@@ -37,123 +45,6 @@ FLOAT_MAX = 1e30
 kGjkMultiContactCount = 4
 kMaxEpaBestCount = 12
 kMaxMultiPolygonCount = 8
-
-
-@wp.struct
-class GeomType_PLANE:
-  pos: wp.vec3
-  rot: wp.mat33
-
-
-@wp.struct
-class GeomType_SPHERE:
-  pos: wp.vec3
-  rot: wp.mat33
-  radius: float
-
-
-@wp.struct
-class GeomType_CAPSULE:
-  pos: wp.vec3
-  rot: wp.mat33
-  radius: float
-  halfsize: float
-
-
-@wp.struct
-class GeomType_ELLIPSOID:
-  pos: wp.vec3
-  rot: wp.mat33
-  size: wp.vec3
-
-
-@wp.struct
-class GeomType_CYLINDER:
-  pos: wp.vec3
-  rot: wp.mat33
-  radius: float
-  halfsize: float
-
-
-@wp.struct
-class GeomType_BOX:
-  pos: wp.vec3
-  rot: wp.mat33
-  size: wp.vec3
-
-
-@wp.struct
-class GeomType_CONVEX:
-  pos: wp.vec3
-  rot: wp.mat33
-  vert_offset: int
-  vert_count: int
-
-
-def get_info(t):
-  @wp.func
-  def _get_info(
-    gid: int,
-    dataid: int,
-    geom_xpos: wp.array(dtype=wp.vec3),
-    geom_xmat: wp.array(dtype=wp.mat33),
-    size: wp.vec3,
-    convex_vert_offset: wp.array(dtype=int),
-  ):
-    pos = geom_xpos[gid]
-    rot = geom_xmat[gid]
-    if wp.static(t == GeomType.GEOM_SPHERE.value):
-      sphere = GeomType_SPHERE()
-      sphere.pos = pos
-      sphere.rot = rot
-      sphere.radius = size[0]
-      return sphere
-    elif wp.static(t == GeomType.GEOM_BOX.value):
-      box = GeomType_BOX()
-      box.pos = pos
-      box.rot = rot
-      box.size = size
-      return box
-    elif wp.static(t == GeomType.GEOM_PLANE.value):
-      plane = GeomType_PLANE()
-      plane.pos = pos
-      plane.rot = rot
-      return plane
-    elif wp.static(t == GeomType.GEOM_CAPSULE.value):
-      capsule = GeomType_CAPSULE()
-      capsule.pos = pos
-      capsule.rot = rot
-      capsule.radius = size[0]
-      capsule.halfsize = size[1]
-      return capsule
-    elif wp.static(t == GeomType.GEOM_ELLIPSOID.value):
-      ellipsoid = GeomType_ELLIPSOID()
-      ellipsoid.pos = pos
-      ellipsoid.rot = rot
-      ellipsoid.size = size
-      return ellipsoid
-    elif wp.static(t == GeomType.GEOM_CYLINDER.value):
-      cylinder = GeomType_CYLINDER()
-      cylinder.pos = pos
-      cylinder.rot = rot
-      cylinder.radius = size[0]
-      cylinder.halfsize = size[1]
-      return cylinder
-    elif wp.static(t == GeomType.GEOM_CONVEX.value):
-      convex = GeomType_CONVEX()
-      convex.pos = pos
-      convex.rot = rot
-      if convex_vert_offset and dataid >= 0:
-        convex.vert_offset = convex_vert_offset[dataid]
-        convex.vert_count = convex_vert_offset[dataid + 1] - convex.vert_offset
-      else:
-        convex.vert_offset = 0
-        convex.vert_count = 0
-      return convex
-    else:
-      wp.static(RuntimeError("Unsupported type", t))
-
-  return _get_info
 
 
 @wp.func
@@ -179,7 +70,7 @@ def gjk_support_plane(
 
 @wp.func
 def gjk_support_sphere(
-  info: GeomType_SPHERE,
+  info: GeomSphere,
   dir: wp.vec3,
   convex_vert: wp.array(dtype=wp.vec3),
 ):
@@ -200,7 +91,7 @@ def sign(x: wp.vec3):
 
 @wp.func
 def gjk_support_box(
-  info: GeomType_BOX,
+  info: GeomBox,
   dir: wp.vec3,
   convex_vert: wp.array(dtype=wp.vec3),
 ):
@@ -212,7 +103,7 @@ def gjk_support_box(
 
 @wp.func
 def gjk_support_capsule(
-  info: GeomType_CAPSULE,
+  info: GeomCapsule,
   dir: wp.vec3,
   convex_vert: wp.array(dtype=wp.vec3),
 ):
@@ -227,7 +118,7 @@ def gjk_support_capsule(
 
 @wp.func
 def gjk_support_ellipsoid(
-  info: GeomType_ELLIPSOID,
+  info: GeomEllipsoid,
   dir: wp.vec3,
   convex_vert: wp.array(dtype=wp.vec3),
 ):
@@ -244,7 +135,7 @@ def gjk_support_ellipsoid(
 
 @wp.func
 def gjk_support_cylinder(
-  info: GeomType_CYLINDER,
+  info: GeomCylinder,
   dir: wp.vec3,
   convex_vert: wp.array(dtype=wp.vec3),
 ):
@@ -264,7 +155,7 @@ def gjk_support_cylinder(
 
 @wp.func
 def gjk_support_convex(
-  info: GeomType_CONVEX,
+  info: GeomMesh,
   dir: wp.vec3,
   convex_vert: wp.array(dtype=wp.vec3),
 ):
@@ -292,7 +183,7 @@ support_functions = {
   GeomType.CAPSULE.value: gjk_support_capsule,
   GeomType.ELLIPSOID.value: gjk_support_ellipsoid,
   GeomType.CYLINDER.value: gjk_support_cylinder,
-  GeomType.CONVEX.value: gjk_support_convex,
+  GeomType.MESH.value: gjk_support_convex,
 }
 
 
@@ -1658,3 +1549,7 @@ def narrowphase(
         contact_pos,
         contact_normal,
       )
+
+
+def narrowphase(m: Model, d: Data):
+  pass

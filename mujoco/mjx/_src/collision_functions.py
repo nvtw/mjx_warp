@@ -144,6 +144,27 @@ def get_info(t):
 
 
 @wp.func
+def write_contact(
+  d: Data,
+  dist: float,
+  pos: wp.vec3,
+  frame: wp.mat33,
+  margin: float,
+  geoms: wp.vec2i,
+  worldid: int,
+):
+  active = (dist - margin) < 0
+  if active:
+    index = wp.atomic_add(d.ncon, 0, 1)
+    if index < d.nconmax:
+      d.contact.dist[index] = dist
+      d.contact.pos[index] = pos
+      d.contact.frame[index] = frame
+      d.contact.geom[index] = geoms
+      d.contact.worldid[index] = worldid
+
+
+@wp.func
 def _plane_sphere(
   plane_normal: wp.vec3, plane_pos: wp.vec3, sphere_pos: wp.vec3, sphere_radius: float
 ):
@@ -153,18 +174,28 @@ def _plane_sphere(
 
 
 @wp.func
-def plane_sphere(plane: GeomPlane, sphere: GeomSphere, worldid: int, d: Data):
+def plane_sphere(
+  plane: GeomPlane,
+  sphere: GeomSphere,
+  worldid: int,
+  d: Data,
+  margin: float,
+  geom_indices: wp.vec2i,
+):
   dist, pos = _plane_sphere(plane.normal, plane.pos, sphere.pos, sphere.radius)
 
-  index = wp.atomic_add(d.ncon, 0, 1)
-  d.contact.dist[index] = dist
-  d.contact.pos[index] = pos
-  d.contact.frame[index] = make_frame(plane.normal)
-  return index, 1
+  write_contact(d, dist, pos, make_frame(plane.normal), margin, geom_indices, worldid)
 
 
 @wp.func
-def sphere_sphere(sphere1: GeomSphere, sphere2: GeomSphere, worldid: int, d: Data):
+def sphere_sphere(
+  sphere1: GeomSphere,
+  sphere2: GeomSphere,
+  worldid: int,
+  d: Data,
+  margin: float,
+  geom_indices: wp.vec2i,
+):
   dir = sphere1.pos - sphere2.pos
   dist = wp.length(dir)
   if dist == 0.0:
@@ -174,15 +205,18 @@ def sphere_sphere(sphere1: GeomSphere, sphere2: GeomSphere, worldid: int, d: Dat
   dist = dist - (sphere1.radius + sphere2.radius)
   pos = sphere1.pos + n * (sphere1.radius + 0.5 * dist)
 
-  index = wp.atomic_add(d.ncon, 0, 1)
-  d.contact.dist[index] = dist
-  d.contact.pos[index] = pos
-  d.contact.frame[index] = make_frame(n)
-  return index, 1
+  write_contact(d, dist, pos, make_frame(n), margin, geom_indices, worldid)
 
 
 @wp.func
-def plane_capsule(plane: GeomPlane, cap: GeomCapsule, worldid: int, d: Data):
+def plane_capsule(
+  plane: GeomPlane,
+  cap: GeomCapsule,
+  worldid: int,
+  d: Data,
+  margin: float,
+  geom_indices: wp.vec2i,
+):
   """Calculates two contacts between a capsule and a plane."""
   n = plane.normal
   axis = wp.vec3(cap.rot[0, 2], cap.rot[1, 2], cap.rot[2, 2])
@@ -198,19 +232,11 @@ def plane_capsule(plane: GeomPlane, cap: GeomCapsule, worldid: int, d: Data):
   frame = mat33_from_cols(n, b, wp.cross(n, b))
   segment = axis * cap.halfsize
 
-  start_index = wp.atomic_add(d.ncon, 0, 2)
-  index = start_index
-  dist, pos = _plane_sphere(n, plane.pos, cap.pos + segment, cap.radius)
-  d.contact.dist[index] = dist
-  d.contact.pos[index] = pos
-  d.contact.frame[index] = frame
-  index += 1
+  dist1, pos1 = _plane_sphere(n, plane.pos, cap.pos + segment, cap.radius)
+  write_contact(d, dist1, pos1, frame, margin, geom_indices, worldid)
 
-  dist, pos = _plane_sphere(n, plane.pos, cap.pos - segment, cap.radius)
-  d.contact.dist[index] = dist
-  d.contact.pos[index] = pos
-  d.contact.frame[index] = frame
-  return start_index, 2
+  dist2, pos2 = _plane_sphere(n, plane.pos, cap.pos - segment, cap.radius)
+  write_contact(d, dist2, pos2, frame, margin, geom_indices, worldid)
 
 
 _collision_functions = {
@@ -242,20 +268,21 @@ def create_collision_function_kernel(type1, type2):
     geom1 = wp.static(get_info(type1))(
       g1,
       m,
-      d.geom_xpos[g1],
-      d.geom_xmat[g1],
+      d.geom_xpos[worldid],
+      d.geom_xmat[worldid],
     )
     geom2 = wp.static(get_info(type2))(
       g2,
       m,
-      d.geom_xpos[g2],
-      d.geom_xmat[g2],
+      d.geom_xpos[worldid],
+      d.geom_xmat[worldid],
     )
 
-    index, ncon = wp.static(_collision_functions[(type1, type2)])(geom1, geom2, worldid, d)
-    for i in range(ncon):
-      d.contact.worldid[index + i] = worldid
-      d.contact.geom[index + i] = geoms
+    margin = wp.max(m.geom_margin[g1], m.geom_margin[g2])
+
+    wp.static(_collision_functions[(type1, type2)])(
+      geom1, geom2, worldid, d, margin, geoms
+    )
 
   return _collision_function_kernel
 
@@ -267,20 +294,12 @@ def narrowphase(m: Model, d: Data):
   # we need to figure out how to keep the overhead of this small - not launching anything
   # for pair types without collisions, as well as updating the launch dimensions.
 
-  # we run the collision functions in increasing condim order to get the grouping
-  # right from the get-go.
-
   # TODO only generate collision kernels we actually need
   if len(_collision_kernels) == 0:
     for type1, type2 in _collision_functions.keys():
       _collision_kernels[(type1, type2)] = create_collision_function_kernel(
         type1, type2
       )
-
-  # for i in range(len(_COLLISION_FUNCS)):
-  #   # this will lead to a bunch of unnecessary launches, but we don't want to sync at this point
-  #   func, group_key = _COLLISION_FUNCS[i]
-  #   func(m, d, group_key)
 
   for collision_kernel in _collision_kernels.values():
     wp.launch(collision_kernel, dim=d.nconmax, inputs=[m, d])

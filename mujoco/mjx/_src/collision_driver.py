@@ -17,10 +17,7 @@ import warp as wp
 
 from .types import Model
 from .types import Data
-from .types import Contact
 from .types import MJ_MINVAL
-from .types import MJ_NREF
-from .types import MJ_NIMP
 from .types import vec5
 from .types import DisableBit
 from .support import where
@@ -101,7 +98,6 @@ def overlap(
 
 @wp.kernel
 def broadphase_project_boxes_onto_sweep_direction_kernel(
-  m: Model,
   d: Data,
 ):
   worldId, i = wp.tid()
@@ -380,7 +376,7 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
   wp.launch(
     kernel=broadphase_project_boxes_onto_sweep_direction_kernel,
     dim=(d.nworld, m.ngeom),
-    inputs=[m, d],
+    inputs=[d],
   )
 
   segmented_sort_available = hasattr(wp.utils, "segmented_sort_pairs")
@@ -469,15 +465,6 @@ def broadphase_sweep_and_prune(m: Model, d: Data):
 
 
 ###########################################################################################3
-
-
-def init_contact(m: Model, d: Data):
-  # initialize output data
-  wp.launch(
-    kernel=init_contact_kernel,
-    dim=(d.nconmax),
-    inputs=[d.contact],
-  )
 
 
 def broadphase(m: Model, d: Data):

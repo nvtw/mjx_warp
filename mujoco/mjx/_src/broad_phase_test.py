@@ -20,16 +20,7 @@ from mujoco import mjx
 import warp as wp
 from absl.testing import absltest, parameterized
 
-from mujoco import mjx
-
-from . import test_util
-
-BoxType = wp.types.matrix(shape=(2, 3), dtype=wp.float32)
-
-
-class AABB:
-  min: wp.vec3
-  max: wp.vec3
+from .collision_driver import AABB
 
 
 def transform_aabb(aabb_pos, aabb_size, pos: wp.vec3, ori: wp.mat33) -> AABB:
@@ -226,9 +217,9 @@ class BroadPhaseTest(parameterized.TestCase):
 
         # Convert pair to tuple for comparison
         pair_tuple = (int(pair[0]), int(pair[1]))
-        assert pair_tuple in list, (
-          f"Collision pair {pair_tuple} not found in brute force results"
-        )
+        assert (
+          pair_tuple in list
+        ), f"Collision pair {pair_tuple} not found in brute force results"
 
     return
 
