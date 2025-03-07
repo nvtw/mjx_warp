@@ -247,7 +247,14 @@ def distance_point_plane(plane_normal: wp.vec3, plane_pos: wp.vec3, point: wp.ve
 
 
 @wp.func
-def plane_box(plane: GeomPlane, box: GeomBox, worldid: int, d: Data):
+def plane_box(
+  plane: GeomPlane,
+  box: GeomBox,
+  worldid: int,
+  d: Data,
+  margin: float,
+  geom_indices: wp.vec2i,
+):
   contact_count = int(0)
 
   # Check all 8 corners of the box
@@ -265,32 +272,10 @@ def plane_box(plane: GeomPlane, box: GeomBox, worldid: int, d: Data):
     dist, pos = distance_point_plane(plane.normal, plane.pos, corner_world)
 
     if dist < 0.0 and contact_count < 4:
+      write_contact(
+        d, dist, pos, make_frame(plane.normal), margin, geom_indices, worldid
+      )
       contact_count += 1
-
-  start_index = wp.atomic_add(d.ncon, 0, contact_count)
-
-  contact_count = 0
-  for i in range(8):
-    corner = wp.vec3(box.size.x * 0.5, box.size.y * 0.5, box.size.z * 0.5)
-    if i % 2 == 0:
-      corner.x = -corner.x
-    if (i // 2) % 2 == 0:
-      corner.y = -corner.y
-    if i < 4:
-      corner.z = -corner.z
-
-    corner_world = box.rot * (corner) + box.pos
-
-    dist, pos = distance_point_plane(plane.normal, plane.pos, corner_world)
-
-    if dist < 0.0 and contact_count < 4:
-      index = start_index + contact_count
-      d.contact.dist[index] = dist
-      d.contact.pos[index] = pos
-      d.contact.frame[index] = make_frame(plane.normal)
-      contact_count += 1
-
-  return start_index, contact_count
 
 
 _collision_functions = {
