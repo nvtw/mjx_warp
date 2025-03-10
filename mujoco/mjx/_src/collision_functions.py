@@ -14,7 +14,6 @@
 # ==============================================================================
 
 
-import itertools
 import math
 from typing import Any
 
@@ -298,18 +297,6 @@ def plane_capsule(
 HUGE_VAL = 1e6
 TINY_VAL = 1e-6
 
-# BOX_VERTS = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
-#
-# BOX_FACES = np.array([
-#       0, 4, 5, 1,
-#       0, 2, 6, 4,
-#       6, 7, 5, 4,
-#       2, 3, 7, 6,
-#       1, 5, 7, 3,
-#       0, 1, 3, 2,
-#   ]).reshape((-1, 4))  # fmt: skip
-
-
 class mat83f(wp.types.matrix(shape=(8, 3), dtype=wp.float32)):
   pass
 
@@ -371,18 +358,13 @@ def box(R: wp.mat33, t: wp.vec3, geom_size: wp.vec3) -> Box:
   x = geom_size[0]
   y = geom_size[1]
   z = geom_size[2]
-  t = wp.vec3(0.0)
-  m = mat38f(
-    R @ wp.vec3(-x, -y, -z) + t,
-    R @ wp.vec3(-x, -y, +z) + t,
-    R @ wp.vec3(-x, +y, -z) + t,
-    R @ wp.vec3(-x, +y, +z) + t,
-    R @ wp.vec3(+x, -y, -z) + t,
-    R @ wp.vec3(+x, -y, +z) + t,
-    R @ wp.vec3(+x, +y, -z) + t,
-    R @ wp.vec3(+x, +y, +z) + t,
-  )
-  return Box(wp.transpose(m))
+  m = mat83f()
+  for i in range(8):
+    ix = wp.select(i & 4, -x, x)
+    iy = wp.select(i & 2, -y, y)
+    iz = wp.select(i & 1, -z, z)
+    m[i] = R @ wp.vec3(ix, iy, iz) + t
+  return Box(m)
 
 
 @wp.func
@@ -483,7 +465,7 @@ def face_axis_alignment(a: wp.vec3, R: wp.mat33) -> wp.int32:
     if d > max_dot:
       max_dot = d
       max_idx = i
-  return i
+  return max_idx
 
 
 @wp.func
@@ -494,7 +476,7 @@ def collision_axis_tiled(
   b: Box,
   R: wp.mat33,
   axis_idx: wp.int32,
-  ) -> tuple[wp.vec3, wp.int32, wp.int32]:
+  ):
   """Finds the axis of minimum separation.
   Returns:
     best_axis: vec3
@@ -517,7 +499,7 @@ def collision_axis_tiled(
   face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(21,)))
   edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(21,)))
 
-  if axis_idx > 0:
+  if axis_idx > 0:  # single thread
     return wp.vec3(0.0), 0, 0
 
   # choose the best separating axis
@@ -533,14 +515,6 @@ def collision_axis_tiled(
       best_sign = wp.int32(edge.best_sign)
       best_idx = wp.int32(edge.best_idx)
   return best_axis, best_sign, best_idx
-
-
-@wp.func
-def create_contact_manifold(
-  m: Model,
-  d: Data,
-) -> tuple[wp.float32, wp.vec3, wp.mat33]:
-  pass
 
 
 @wp.kernel
@@ -608,7 +582,6 @@ def box_box_kernel(
         -sep_axis,
       )
 
-    normal = sep_axis
     idx = argmin(dist)
     if best_idx > 11:  # is_edge_contact
       dist = wp.vec4f(dist[best_idx], 1.0, 1.0, 1.0)
@@ -617,7 +590,9 @@ def box_box_kernel(
 
     margin = wp.max(m.geom_margin[ga], m.geom_margin[gb])
     for i in range(4):
-      write_contact(d, dist[i], pos[i], make_frame(sep_axis), margin, wp.vec2i(ga, gb), world_id)
+      pos_glob = b_mat @ pos[i] + b_pos
+      n_glob = b_mat @ sep_axis
+      write_contact(d, dist[i], pos_glob, make_frame(n_glob), margin, wp.vec2i(ga, gb), world_id)
 
 
 def box_box(
@@ -658,45 +633,11 @@ def _closest_segment_point_plane(
   n = plane_normal
   d = wp.dot(p0, n)  # shortest distance from origin to plane
   denom = wp.dot(n, (b - a))
-  t = (d - wp.dot(n, a)) / (denom + TINY_VAL * wp.select(denom == 0.0, 1.0, 0.0))
+  t = (d - wp.dot(n, a)) / (denom + wp.select(denom == 0.0, 0.0, TINY_VAL))
   t = wp.clamp(t, 0.0, 1.0)
   segment_point = a + t * (b - a)
 
   return segment_point
-
-
-@wp.kernel
-def _clip_edge_to_poly(
-  subject_poly: wp.array(dtype=wp.vec3, ndim=2),
-  subject_poly_length: wp.array(dtype=wp.int32, ndim=1),
-  clipping_poly: wp.array(dtype=wp.vec3, ndim=2),
-  clipping_poly_length: wp.array(dtype=wp.int32, ndim=1),
-  clipping_normal: wp.array(dtype=wp.vec3, ndim=1),
-  clipped_points_offset: wp.array(dtype=wp.int32, ndim=1),
-  # outputs
-  clipped_points: wp.array(dtype=wp.vec3, ndim=2),
-  mask: wp.array(dtype=wp.int32, ndim=2),
-  clipped_points_length: wp.array(dtype=wp.int32, ndim=1),
-):
-  assert clipped_points.shape[1] == subject_poly.shape[1] + clipping_poly.shape[1]
-  assert clipped_points.shape[1] == mask.shape[1]
-
-
-@wp.func
-def _project_quad_onto_plane(
-  quad: mat43f,
-  quad_n: wp.vec3,
-  plane_n: wp.vec3,
-  plane_pt: wp.vec3,
-):
-  """Projects poly1 onto the poly2 plane along poly2's normal."""
-  d = wp.dot(plane_pt, plane_n)
-  denom = wp.dot(quad_n, plane_n)
-  qn_scaled = quad_n / (denom + wp.select(denom == 0.0, TINY_VAL, 0.0))
-
-  for i in range(4):
-    quad[i] = quad[i] + (d - wp.dot(quad[i], plane_n)) * qn_scaled
-  return quad
 
 
 @wp.func
@@ -709,7 +650,7 @@ def _project_poly_onto_plane(
   """Projects poly1 onto the poly2 plane along poly2's normal."""
   d = wp.dot(plane_pt, plane_n)
   denom = wp.dot(poly_n, plane_n)
-  qn_scaled = poly_n / (denom + wp.select(denom == 0.0, TINY_VAL, 0.0))
+  qn_scaled = poly_n / (denom + wp.select(denom == 0.0, 0.0, TINY_VAL))
 
   for i in range(len(poly)):
     poly[i] = poly[i] + (d - wp.dot(poly[i], plane_n)) * qn_scaled
@@ -853,8 +794,8 @@ def _manifold_points(
   ac = wp.cross(clipping_norm, a - c)
   bc = wp.cross(clipping_norm, b - c)
 
-  d_idx = wp.int32(-2e6)
-  d_dist = wp.float32(0)
+  d_idx = wp.int32(0)
+  d_dist = wp.float32(-2*HUGE_VAL)
   for i in range(n):
     ap = a - poly[i]
     dist_ap = wp.abs(wp.dot(ap, bc)) + wp.select(mask[i], -HUGE_VAL, 0.0)
@@ -892,7 +833,7 @@ def _create_contact_manifold(
     incident, clipping_normal, clipping_normal, clipping_quad[0]
   )
 
-  # # Choose four contact points.
+  # Choose four contact points.
   best = _manifold_points(ref, mask, clipping_normal)
   contact_pts = mat43f()
   dist = wp.vec4f()
