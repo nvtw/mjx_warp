@@ -321,11 +321,14 @@ def plane_box(
 
     dist, pos = distance_point_plane(plane.normal, plane.pos, corner_world)
 
-    if dist < 0.0 and contact_count < 4:
+    if dist < 0.0:
       write_contact(
         d, dist, pos, make_frame(plane.normal), margin, geom_indices, worldid
       )
       contact_count += 1
+
+    if contact_count >= 4:
+      break
 
 
 _collision_functions = {
