@@ -375,6 +375,28 @@ def box(R: wp.mat33, t: wp.vec3, geom_size: wp.vec3) -> Box:
 
 
 @wp.func
+def box_face_verts(box: Box, idx: wp.int32) -> mat43f:
+  """Get the quad corresponding to a box face"""
+  if idx == 0:
+    verts = wp.vec4i(0, 4, 5, 1)
+  if idx == 1:
+    verts = wp.vec4i(0, 2, 6, 4)
+  if idx == 2:
+    verts = wp.vec4i(6, 7, 5, 4)
+  if idx == 3:
+    verts = wp.vec4i(2, 3, 7, 6)
+  if idx == 4:
+    verts = wp.vec4i(1, 5, 7, 3)
+  if idx == 5:
+    verts = wp.vec4i(0, 1, 3, 2)
+
+  m = mat43f()
+  for i in range(4):
+    m[i] = box.verts[verts[i]]
+  return m
+
+
+@wp.func
 def get_box_axis(
   axis_idx: int,
   R: wp.mat33,
@@ -441,6 +463,19 @@ def reduce_axis_support(a: AxisSupport, b: AxisSupport):
 
 
 @wp.func
+def face_axis_alignment(a: wp.vec3, R: wp.mat33) -> wp.int32:
+  """Find the box faces most aligned with the axis `a`"""
+  max_dot = wp.float32(0.0)
+  max_idx = wp.int32(0)
+  for i in range(6):
+    d = wp.dot(R @ box_normals(i), a)
+    if d > max_dot:
+      max_dot = d
+      max_idx = i
+  return i
+
+
+@wp.func
 def collision_axis_tiled(
   m: Model,
   d: Data,
@@ -448,11 +483,12 @@ def collision_axis_tiled(
   b: Box,
   R: wp.mat33,
   axis_idx: wp.int32,
-):
-  """Finds the axis of minimum separation or maximum overlap.
+) -> tuple[wp.vec3, wp.int32, wp.int32]:
+  """Finds the axis of minimum separation.
   Returns:
     best_axis: vec3
-    best_idx: int8
+    best_sign: int32
+    best_idx: int32
   """
   # launch tiled with block_dim=21
 
@@ -467,30 +503,27 @@ def collision_axis_tiled(
   face_supports_red = wp.tile_reduce(reduce_axis_support, face_supports)
   edge_supports_red = wp.tile_reduce(reduce_axis_support, edge_supports)
 
-  face = face_supports_red[0]
-  edge = edge_supports_red[0]
+  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(21,)))
+  edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(21,)))
 
   if axis_idx > 0:
-    return wp.vec3(0.0), 0
+    return wp.vec3(0.0), 0, 0
 
-  face_axis, _1 = get_box_axis(wp.int32(face.best_idx), R)
+  # choose the best separating axis
+  face_axis, _ = get_box_axis(wp.int32(face.best_idx), R)
   best_axis = wp.vec3(face_axis)
+  best_sign = wp.int32(face.best_sign)
+  best_idx = wp.int32(face.best_idx)
+  is_edge_contact = wp.bool(False)
 
   if edge.best_dist < face.best_dist:
-    edge_axis, _2 = get_box_axis(wp.int32(edge.best_idx), R)
+    edge_axis, _ = get_box_axis(wp.int32(edge.best_idx), R)
     if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
       best_axis = edge_axis
-
-  # face_axis = get_axis(best_face_idx)[0]
-  # best_axis = wp.vec3(face_axis)
-
-  # if best_edge_dist < best_face_dist:
-  #   edge_axis = get_axis(best_edge_idx)[0]
-  #   if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
-  #     best_axis = edge_axis
-
-  # # get the (reference) face most aligned with the separating axis
-  return best_axis, 0
+      best_sign = wp.int32(edge.best_sign)
+      best_idx = wp.int32(edge.best_idx)
+      is_edge_contact = True
+  return best_axis, best_sign, best_idx
 
 
 @wp.func
@@ -533,24 +566,33 @@ def box_box_kernel(
     a = box(rot_atob, trans_atob, a_size)
     b = box(wp.identity(3, wp.float32), wp.vec3(0.0), b_size)
 
-    # - faces compute from verts
-
     # box-box implementation
-    collision_axis_tiled(m, d, a, b, rot_atob, axis_idx)
-    # dist, pos, normal = create_contact_manifold(m, d, axis_idx)
+    best_axis, best_sign, best_idx = collision_axis_tiled(
+      m, d, a, b, rot_atob, axis_idx
+    )
 
-    # # generate contact w/ 1 thread per pair
-    # if axis_idx != 0:
-    #   return
+    # get the (reference) face most aligned with the separating axis
+    a_max = face_axis_alignment(best_axis, rot_atob)
+    b_max = face_axis_alignment(best_axis, wp.identity(3, wp.float32))
 
-    # # if contact
-    # if dist < 0:
-    #   contact_idx = wp.atomic_add(d.contact_counter, 0, 1)
-    #   # TODO(ca): multi-dimensional contacts
-    #   d.contact.dist[contact_idx] = dist
-    #   d.contact.pos[contact_idx] = b_pos + b_mat @ pos
-    #   d.contact.frame[contact_idx] = make_frame(b_mat @ normal)
-    #   d.contact.worldid[contact_idx] = world_id
+    if best_sign > 0:
+      b_min = (b_max + 3) % 6
+      dist, pos, normal = _create_contact_manifold(
+        box_face_verts(a, a_max),
+        rot_atob @ box_normals(a_max),
+        box_face_verts(b, b_min),
+        box_normals(b_min),
+        -wp.float32(best_sign) * best_axis,
+      )
+    else:
+      a_min = (a_max + 3) % 6
+      dist, pos, normal = _create_contact_manifold(
+        box_face_verts(b, b_max),
+        box_normals(b_max),
+        box_face_verts(a, a_min),
+        rot_atob @ box_normals(a_min),
+        -wp.float32(best_sign) * best_axis,
+      )
 
 
 def box_box(
