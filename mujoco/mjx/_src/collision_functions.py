@@ -339,6 +339,17 @@ class vec16b(wp.types.vector(length=16, dtype=wp.int8)):
 
 
 @wp.func
+def argmin(a: Any)->wp.int32:
+    amin = wp.int32(0)
+    vmin = wp.float32(a[0])
+    for i in range(1, len(a)):
+        if a[i] < vmin:
+            amin = i
+            vmin = a[i]
+    return amin
+
+
+@wp.func
 def box_normals(i: int) -> wp.vec3:
   direction = wp.select(i < 3, 1.0, -1.0)
   mod = i % 3
@@ -483,7 +494,7 @@ def collision_axis_tiled(
   b: Box,
   R: wp.mat33,
   axis_idx: wp.int32,
-) -> tuple[wp.vec3, wp.int32, wp.int32]:
+  ) -> tuple[wp.vec3, wp.int32, wp.int32]:
   """Finds the axis of minimum separation.
   Returns:
     best_axis: vec3
@@ -514,7 +525,6 @@ def collision_axis_tiled(
   best_axis = wp.vec3(face_axis)
   best_sign = wp.int32(face.best_sign)
   best_idx = wp.int32(face.best_idx)
-  is_edge_contact = wp.bool(False)
 
   if edge.best_dist < face.best_dist:
     edge_axis, _ = get_box_axis(wp.int32(edge.best_idx), R)
@@ -522,7 +532,6 @@ def collision_axis_tiled(
       best_axis = edge_axis
       best_sign = wp.int32(edge.best_sign)
       best_idx = wp.int32(edge.best_idx)
-      is_edge_contact = True
   return best_axis, best_sign, best_idx
 
 
@@ -575,24 +584,40 @@ def box_box_kernel(
     a_max = face_axis_alignment(best_axis, rot_atob)
     b_max = face_axis_alignment(best_axis, wp.identity(3, wp.float32))
 
+    if axis_idx != 0:
+      continue
+
+    sep_axis = wp.float32(best_sign) * best_axis
+
     if best_sign > 0:
       b_min = (b_max + 3) % 6
-      dist, pos, normal = _create_contact_manifold(
+      dist, pos = _create_contact_manifold(
         box_face_verts(a, a_max),
         rot_atob @ box_normals(a_max),
         box_face_verts(b, b_min),
         box_normals(b_min),
-        -wp.float32(best_sign) * best_axis,
+        -sep_axis,
       )
     else:
       a_min = (a_max + 3) % 6
-      dist, pos, normal = _create_contact_manifold(
+      dist, pos = _create_contact_manifold(
         box_face_verts(b, b_max),
         box_normals(b_max),
         box_face_verts(a, a_min),
         rot_atob @ box_normals(a_min),
-        -wp.float32(best_sign) * best_axis,
+        -sep_axis,
       )
+
+    normal = sep_axis
+    idx = argmin(dist)
+    if best_idx > 11:  # is_edge_contact
+      dist = wp.vec4f(dist[best_idx], 1.0, 1.0, 1.0)
+      for i in range(4):
+        pos[i] = pos[idx]
+
+    margin = wp.max(m.geom_margin[ga], m.geom_margin[gb])
+    for i in range(4):
+      write_contact(d, dist[i], pos[i], make_frame(sep_axis), margin, wp.vec2i(ga, gb), world_id)
 
 
 def box_box(
@@ -756,7 +781,7 @@ def _clip_quad(
   subject_normal: wp.vec3,
   clipping_quad: mat43f,
   clipping_normal: wp.vec3,
-) -> tuple[mat83f, vec8b]:
+  ):
   """Clips a subject quad against a clipping quad.
   Serial implementation.
   """
@@ -849,7 +874,7 @@ def _create_contact_manifold(
   subject_quad: mat43f,
   subject_normal: wp.vec3,
   sep_axis: wp.vec3,
-) -> tuple[wp.vec3, wp.vec3, wp.vec3]:
+  ):
   # Clip the subject (incident) face onto the clipping (reference) face.
   # The incident points are clipped points on the subject polygon.
   incident, mask = _clip_quad(
