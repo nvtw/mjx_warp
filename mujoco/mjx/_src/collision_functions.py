@@ -297,6 +297,15 @@ def plane_capsule(
 HUGE_VAL = 1e6
 TINY_VAL = 1e-6
 
+
+class vec16b(wp.types.vector(length=16, dtype=wp.int8)):
+  pass
+
+
+class mat43f(wp.types.matrix(shape=(4, 3), dtype=wp.float32)):
+  pass
+
+
 class mat83f(wp.types.matrix(shape=(8, 3), dtype=wp.float32)):
   pass
 
@@ -305,35 +314,18 @@ class mat16_3f(wp.types.matrix(shape=(16, 3), dtype=wp.float32)):
   pass
 
 
-class mat34f(wp.types.matrix(shape=(3, 4), dtype=wp.float32)):
-  pass
-
-
-class mat43f(wp.types.matrix(shape=(4, 3), dtype=wp.float32)):
-  pass
-
-
-class mat38f(wp.types.matrix(shape=(3, 8), dtype=wp.float32)):
-  pass
-
-
-class vec8b(wp.types.vector(length=8, dtype=wp.int8)):
-  pass
-
-
-class vec16b(wp.types.vector(length=16, dtype=wp.int8)):
-  pass
+Box = mat83f
 
 
 @wp.func
-def argmin(a: Any)->wp.int32:
-    amin = wp.int32(0)
-    vmin = wp.float32(a[0])
-    for i in range(1, len(a)):
-        if a[i] < vmin:
-            amin = i
-            vmin = a[i]
-    return amin
+def _argmin(a: Any) -> wp.int32:
+  amin = wp.int32(0)
+  vmin = wp.float32(a[0])
+  for i in range(1, len(a)):
+    if a[i] < vmin:
+      amin = i
+      vmin = a[i]
+  return amin
 
 
 @wp.func
@@ -347,24 +339,19 @@ def box_normals(i: int) -> wp.vec3:
   return wp.vec3(-direction, 0.0, 0.0)
 
 
-@wp.struct
-class Box:
-  verts: mat83f
-
-
 @wp.func
 def box(R: wp.mat33, t: wp.vec3, geom_size: wp.vec3) -> Box:
   """Get a transformed box"""
   x = geom_size[0]
   y = geom_size[1]
   z = geom_size[2]
-  m = mat83f()
+  m = Box()
   for i in range(8):
     ix = wp.select(i & 4, -x, x)
     iy = wp.select(i & 2, -y, y)
     iz = wp.select(i & 1, -z, z)
     m[i] = R @ wp.vec3(ix, iy, iz) + t
-  return Box(m)
+  return m
 
 
 @wp.func
@@ -385,7 +372,7 @@ def box_face_verts(box: Box, idx: wp.int32) -> mat43f:
 
   m = mat43f()
   for i in range(4):
-    m[i] = box.verts[verts[i]]
+    m[i] = box[verts[i]]
   return m
 
 
@@ -428,8 +415,8 @@ def get_box_axis_support(
   support_a_max, support_b_max = wp.float32(-HUGE_VAL), wp.float32(-HUGE_VAL)
   support_a_min, support_b_min = wp.float32(HUGE_VAL), wp.float32(HUGE_VAL)
   for i in range(8):
-    vert_a = wp.vec3d(a.verts[i])
-    vert_b = wp.vec3d(b.verts[i])
+    vert_a = wp.vec3d(a[i])
+    vert_b = wp.vec3d(b[i])
     proj_a = wp.float32(wp.dot(vert_a, axis_d))
     proj_b = wp.float32(wp.dot(vert_b, axis_d))
     support_a_max = wp.max(support_a_max, proj_a)
@@ -470,13 +457,11 @@ def face_axis_alignment(a: wp.vec3, R: wp.mat33) -> wp.int32:
 
 @wp.func
 def collision_axis_tiled(
-  m: Model,
-  d: Data,
   a: Box,
   b: Box,
   R: wp.mat33,
   axis_idx: wp.int32,
-  ):
+):
   """Finds the axis of minimum separation.
   Returns:
     best_axis: vec3
@@ -550,9 +535,7 @@ def box_box_kernel(
     b = box(wp.identity(3, wp.float32), wp.vec3(0.0), b_size)
 
     # box-box implementation
-    best_axis, best_sign, best_idx = collision_axis_tiled(
-      m, d, a, b, rot_atob, axis_idx
-    )
+    best_axis, best_sign, best_idx = collision_axis_tiled(a, b, rot_atob, axis_idx)
 
     # get the (reference) face most aligned with the separating axis
     a_max = face_axis_alignment(best_axis, rot_atob)
@@ -582,7 +565,7 @@ def box_box_kernel(
         -sep_axis,
       )
 
-    idx = argmin(dist)
+    idx = _argmin(dist)
     if best_idx > 11:  # is_edge_contact
       dist = wp.vec4f(dist[best_idx], 1.0, 1.0, 1.0)
       for i in range(4):
@@ -592,7 +575,9 @@ def box_box_kernel(
     for i in range(4):
       pos_glob = b_mat @ pos[i] + b_pos
       n_glob = b_mat @ sep_axis
-      write_contact(d, dist[i], pos_glob, make_frame(n_glob), margin, wp.vec2i(ga, gb), world_id)
+      write_contact(
+        d, dist[i], pos_glob, make_frame(n_glob), margin, wp.vec2i(ga, gb), world_id
+      )
 
 
 def box_box(
@@ -722,7 +707,7 @@ def _clip_quad(
   subject_normal: wp.vec3,
   clipping_quad: mat43f,
   clipping_normal: wp.vec3,
-  ):
+):
   """Clips a subject quad against a clipping quad.
   Serial implementation.
   """
@@ -795,7 +780,7 @@ def _manifold_points(
   bc = wp.cross(clipping_norm, b - c)
 
   d_idx = wp.int32(0)
-  d_dist = wp.float32(-2*HUGE_VAL)
+  d_dist = wp.float32(-2.0 * HUGE_VAL)
   for i in range(n):
     ap = a - poly[i]
     dist_ap = wp.abs(wp.dot(ap, bc)) + wp.select(mask[i], -HUGE_VAL, 0.0)
@@ -815,7 +800,7 @@ def _create_contact_manifold(
   subject_quad: mat43f,
   subject_normal: wp.vec3,
   sep_axis: wp.vec3,
-  ):
+):
   # Clip the subject (incident) face onto the clipping (reference) face.
   # The incident points are clipped points on the subject polygon.
   incident, mask = _clip_quad(
