@@ -95,7 +95,7 @@ class TestCollisionAxisTiled(absltest.TestCase):
       dim=1,
       inputs=[a, b, R],
       outputs=[best_axis, best_sign, best_idx],
-      block_dim=21,
+      block_dim=256,
     )
     expected_axis = np.array([-1, 0, 0])
     expected_sign = np.sign(best_axis.numpy().dot(expected_axis))
@@ -152,7 +152,7 @@ class TestCollisionAxisTiled(absltest.TestCase):
       dim=1,
       inputs=[a, b, R],
       outputs=[best_axis, best_sign, best_idx],
-      block_dim=21,
+      block_dim=256,
     )
     expected_axis = np.array([-1, 0, -1])
     expected_sign = np.sign(best_axis.numpy().dot(expected_axis))

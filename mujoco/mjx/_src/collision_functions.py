@@ -395,7 +395,7 @@ def get_box_axis(
     assert axis_idx < 21
     edges = axis_idx - 12
     axis_a, axis_b = edges / 3, edges % 3
-    edge_a = R[axis_a]
+    edge_a = wp.transpose(R)[axis_a]
     if axis_b == 0:
       axis = wp.vec3(0.0, -edge_a[2], edge_a[1])
     elif axis_b == 1:
@@ -472,6 +472,8 @@ def collision_axis_tiled(
     best_idx: int32
   """
   # launch tiled with block_dim=21
+  if axis_idx > 20:
+    return wp.vec3(0.0), 0, 0
 
   axis, degenerate_axis = get_box_axis(axis_idx, R)
   axis_dist, axis_sign = get_box_axis_support(axis, degenerate_axis, a, b)
@@ -484,8 +486,8 @@ def collision_axis_tiled(
   face_supports_red = wp.tile_reduce(reduce_axis_support, face_supports)
   edge_supports_red = wp.tile_reduce(reduce_axis_support, edge_supports)
 
-  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(21,)))
-  edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(21,)))
+  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(256,)))
+  edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(256,)))
 
   if axis_idx > 0:  # single thread
     return wp.vec3(0.0), 0, 0
@@ -503,6 +505,7 @@ def collision_axis_tiled(
       best_sign = wp.int32(edge.best_sign)
       best_idx = wp.int32(edge.best_idx)
   return best_axis, best_sign, best_idx
+  return wp.vec3(0.0), 1, 0
 
 
 @wp.kernel
@@ -522,8 +525,7 @@ def box_box_kernel(
     geoms = d.narrowphase_candidate_geom[key, bp_idx]
     world_id = d.narrowphase_candidate_worldid[key, bp_idx]
 
-    ga = geoms[0]
-    gb = geoms[1]
+    ga, gb = geoms[0], geoms[1]
 
     # transformations
     a_pos, b_pos = d.geom_xpos[world_id, ga], d.geom_xpos[world_id, gb]
@@ -539,13 +541,12 @@ def box_box_kernel(
 
     # box-box implementation
     best_axis, best_sign, best_idx = collision_axis_tiled(a, b, rot_atob, axis_idx)
+    if axis_idx != 0:
+      continue
 
     # get the (reference) face most aligned with the separating axis
     a_max = face_axis_alignment(best_axis, rot_atob)
     b_max = face_axis_alignment(best_axis, wp.identity(3, wp.float32))
-
-    if axis_idx != 0:
-      continue
 
     sep_axis = wp.float32(best_sign) * best_axis
 
@@ -568,8 +569,8 @@ def box_box_kernel(
         -sep_axis,
       )
 
-    idx = _argmin(dist)
     if best_idx > 11:  # is_edge_contact
+      idx = _argmin(dist)
       dist = wp.vec4f(dist[best_idx], 1.0, 1.0, 1.0)
       for i in range(4):
         pos[i] = pos[idx]
@@ -589,14 +590,15 @@ def box_box(
 ):
   """Calculates contacts between pairs of boxes."""
   kernel_ratio = 16
-  num_kernels = math.ceil(
+  num_threads = math.ceil(
     d.nconmax / kernel_ratio
-  )  # parallel kernels excluding tile dim
+  )  # parallel threads excluding tile dim
   wp.launch_tiled(
     kernel=box_box_kernel,
-    dim=num_kernels,
-    inputs=[m, d, num_kernels],
-    block_dim=21,
+    dim=num_threads,
+    inputs=[m, d, num_threads],
+    # TODO(ca): support tile sizes 21 or 32
+    block_dim=256,
   )
 
 
@@ -814,7 +816,7 @@ def _create_contact_manifold(
   d = wp.dot(clipping_quad[0], clipping_normal_neg) + TINY_VAL
 
   for i in range(16):
-    if wp.dot(incident[i], clipping_normal_neg) > d:
+    if wp.dot(incident[i], clipping_normal_neg) < d:
       mask[i] = wp.int8(0)
 
   ref = _project_poly_onto_plane(
@@ -940,3 +942,5 @@ def narrowphase(m: Model, d: Data):
 
   for collision_kernel in _collision_kernels.values():
     wp.launch(collision_kernel, dim=d.nconmax, inputs=[m, d])
+  box_box(m, d)
+
