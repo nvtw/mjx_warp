@@ -515,21 +515,21 @@ def box_box_kernel(
   num_kernels: int,
 ):
   """Calculates contacts between pairs of boxes."""
-  thread_idx, axis_idx = wp.tid()
+  tid, axis_idx = wp.tid()
 
   key = wp.static(group_key(GeomType.BOX.value, GeomType.BOX.value))
 
-  num_candidate_contacts = d.narrowphase_candidate_group_count[key]
-
-  for bp_idx in range(thread_idx, num_candidate_contacts, num_kernels):
-    geoms = d.narrowphase_candidate_geom[key, bp_idx]
-    world_id = d.narrowphase_candidate_worldid[key, bp_idx]
+  for bp_idx in range(tid, d.ncollision[0], num_kernels):
+    if d.collision_type[tid] != key:
+      continue
+    geoms = d.collision_pair[bp_idx]
+    worldid = d.collision_worldid[bp_idx]
 
     ga, gb = geoms[0], geoms[1]
 
     # transformations
-    a_pos, b_pos = d.geom_xpos[world_id, ga], d.geom_xpos[world_id, gb]
-    a_mat, b_mat = d.geom_xmat[world_id, ga], d.geom_xmat[world_id, gb]
+    a_pos, b_pos = d.geom_xpos[worldid, ga], d.geom_xpos[worldid, gb]
+    a_mat, b_mat = d.geom_xmat[worldid, ga], d.geom_xmat[worldid, gb]
     b_mat_inv = wp.transpose(b_mat)
     trans_atob = b_mat_inv @ (a_pos - b_pos)
     rot_atob = b_mat_inv @ a_mat
@@ -580,7 +580,7 @@ def box_box_kernel(
       pos_glob = b_mat @ pos[i] + b_pos
       n_glob = b_mat @ sep_axis
       write_contact(
-        d, dist[i], pos_glob, make_frame(n_glob), margin, wp.vec2i(ga, gb), world_id
+        d, dist[i], pos_glob, make_frame(n_glob), margin, wp.vec2i(ga, gb), worldid
       )
 
 
