@@ -2,13 +2,9 @@ import itertools
 
 import numpy as np
 import warp as wp
-
 from absl.testing import absltest
-from absl.testing import parameterized
 
-import warp as wp
-from mujoco.mjx._src.collision_functions import collision_axis_tiled, Box
-from warp.tests.unittest_utils import get_test_devices
+from .collision_functions import collision_axis_tiled, Box
 
 
 @wp.kernel
@@ -27,29 +23,6 @@ def test_collision_axis_tiled_kernel(
   best_axis[bid] = axis_out
   best_sign[bid] = sign_out
   best_idx[bid] = idx_out
-
-
-def box(pos, dims, orient):
-  """Creates a box with rectangular faces."""
-  vert = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))), dtype=float)
-  vert = dims * vert
-  vert = vert @ orient.T + pos
-
-  return vert
-
-
-def setup_vert_face(
-  dist: float, dims_a: np.ndarray, dims_b: np.ndarray, shift: np.ndarray
-):
-  """
-  Create two boxes with a face-vertex distance of dist.
-  dims_a: dimensions of the first box
-  dims_b: dimensions of the second box
-  shift: shift the first box (should be in the yz plane)
-  """
-
-  t_a += shift
-  return (vert_a_new, R_a.T, t_a), (vert_b_new, R_b.T, t_b)
 
 
 class TestCollisionAxisTiled(absltest.TestCase):
@@ -71,7 +44,7 @@ class TestCollisionAxisTiled(absltest.TestCase):
     rx = np.array([1, 0, 0, 0, s, s, 0, -s, s]).reshape((3, 3))
     ry = np.array([s, 0, s, 0, 1, 0, -s, 0, s]).reshape((3, 3))
     # Rotate vert 0 towards negative x at origin
-    R_a =  ry @ rx.T
+    R_a = ry @ rx.T
     t_a = (-dims_a * vert[0]) @ R_a.T
 
     R_b = np.eye(3)
@@ -125,14 +98,14 @@ class TestCollisionAxisTiled(absltest.TestCase):
     ry = np.array([s, 0, s, 0, 1, 0, -s, 0, s]).reshape((3, 3))
 
     # Rotate vert 0 towards negative x at origin
-    R_a =  ry @ rx
+    R_a = ry @ rx
     t_a = (-dims_a * 0.5 * (vert[2] + vert[6])) @ R_a.T
-    #t_a = np.array([0, 0, 2**0.5])
+    # t_a = np.array([0, 0, 2**0.5])
 
     R_b = np.eye(3)
     t_b = (-dims_b * vert[0]) @ R_b.T
     t_b = np.array([-1, 0.0, -1])
-    t_b -= np.array([s, 0, s])*0.2
+    t_b -= np.array([s, 0, s]) * 0.2
 
     vert_a = (dims_a * vert) @ R_a.T + t_a
     vert_b = dims_b * vert @ R_b.T + t_b
