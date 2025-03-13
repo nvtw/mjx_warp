@@ -330,7 +330,7 @@ def _argmin(a: Any) -> wp.int32:
 
 @wp.func
 def box_normals(i: int) -> wp.vec3:
-  direction = wp.select(i < 3, 1.0, -1.0)
+  direction = wp.where(i < 3, -1.0, 1.0)
   mod = i % 3
   if mod == 0:
     return wp.vec3(0.0, direction, 0.0)
@@ -347,9 +347,9 @@ def box(R: wp.mat33, t: wp.vec3, geom_size: wp.vec3) -> Box:
   z = geom_size[2]
   m = Box()
   for i in range(8):
-    ix = wp.select(i & 4, -x, x)
-    iy = wp.select(i & 2, -y, y)
-    iz = wp.select(i & 1, -z, z)
+    ix = wp.where(i & 4, x, -x)
+    iy = wp.where(i & 2, y, -y)
+    iz = wp.where(i & 1, z, -z)
     m[i] = R @ wp.vec3(ix, iy, iz) + t
   return m
 
@@ -425,8 +425,8 @@ def get_box_axis_support(
     support_b_min = wp.min(support_b_min, proj_b)
   dist1 = support_a_max - support_b_min
   dist2 = support_b_max - support_a_min
-  dist = wp.select(degenerate_axis, wp.min(dist1, dist2), HUGE_VAL)
-  sign = wp.select(dist1 > dist2, 1, -1)
+  dist = wp.where(degenerate_axis, HUGE_VAL, wp.min(dist1, dist2))
+  sign = wp.where(dist1 > dist2, -1, 1)
   return dist, sign
 
 
@@ -439,7 +439,7 @@ class AxisSupport:
 
 @wp.func
 def reduce_axis_support(a: AxisSupport, b: AxisSupport):
-  return wp.select(a.best_dist > b.best_dist, a, b)
+  return wp.where(a.best_dist > b.best_dist, b, a)
 
 
 @wp.func
@@ -623,7 +623,7 @@ def _closest_segment_point_plane(
   n = plane_normal
   d = wp.dot(p0, n)  # shortest distance from origin to plane
   denom = wp.dot(n, (b - a))
-  t = (d - wp.dot(n, a)) / (denom + wp.select(denom == 0.0, 0.0, TINY_VAL))
+  t = (d - wp.dot(n, a)) / (denom + wp.where(denom == 0.0, TINY_VAL, 0.0))
   t = wp.clamp(t, 0.0, 1.0)
   segment_point = a + t * (b - a)
 
@@ -640,7 +640,7 @@ def _project_poly_onto_plane(
   """Projects poly1 onto the poly2 plane along poly2's normal."""
   d = wp.dot(plane_pt, plane_n)
   denom = wp.dot(poly_n, plane_n)
-  qn_scaled = poly_n / (denom + wp.select(denom == 0.0, 0.0, TINY_VAL))
+  qn_scaled = poly_n / (denom + wp.where(denom == 0.0, TINY_VAL, 0.0))
 
   for i in range(len(poly)):
     poly[i] = poly[i] + (d - wp.dot(poly[i], plane_n)) * qn_scaled
@@ -676,8 +676,8 @@ def _clip_edge_to_quad(
       candidate_clipped_p = _closest_segment_point_plane(
         subject_p0, subject_p1, clipping_p1, edge_normal
       )
-      clipped_p0 = wp.select(p0_in_front, subject_p0, candidate_clipped_p)
-      clipped_p1 = wp.select(p1_in_front, subject_p1, candidate_clipped_p)
+      clipped_p0 = wp.where(p0_in_front, candidate_clipped_p, subject_p0)
+      clipped_p1 = wp.where(p1_in_front, candidate_clipped_p, subject_p1)
       clipped_dist_p0 = wp.dot(clipped_p0 - subject_p0, subject_p1 - subject_p0)
       clipped_dist_p1 = wp.dot(clipped_p1 - subject_p1, subject_p0 - subject_p1)
       any_both_in_front |= wp.int32(p0_in_front and p1_in_front)
@@ -689,14 +689,14 @@ def _clip_edge_to_quad(
       if clipped_dist_p1 > clipped1_dist_max:
         clipped1_dist_max = clipped_dist_p1
         clipped_p1_distmax = clipped_p1
-    new_p0 = wp.select(any_both_in_front, clipped_p0_distmax, subject_p0)
-    new_p1 = wp.select(any_both_in_front, clipped_p1_distmax, subject_p1)
+    new_p0 = wp.where(any_both_in_front, subject_p0, clipped_p0_distmax)
+    new_p1 = wp.where(any_both_in_front, subject_p1, clipped_p1_distmax)
 
     mask_val = wp.int8(
-      wp.select(
+      wp.where(
         wp.dot(subject_p0 - subject_p1, new_p0 - new_p1) < 0,
-        wp.int32(not any_both_in_front),
         0,
+        wp.int32(not any_both_in_front),
       )
     )
 
@@ -763,7 +763,7 @@ def _manifold_points(
   b_idx = wp.int32(0)
   b_dist = wp.float32(-HUGE_VAL)
   for i in range(n):
-    dist = wp.length_sq(poly[i] - a) + wp.select(mask[i], -HUGE_VAL, 0.0)
+    dist = wp.length_sq(poly[i] - a) + wp.where(mask[i], 0.0, -HUGE_VAL)
     if dist >= b_dist:
       b_idx = i
       b_dist = dist
@@ -775,7 +775,7 @@ def _manifold_points(
   c_dist = wp.float32(-HUGE_VAL)
   for i in range(n):
     ap = a - poly[i]
-    dist = wp.abs(wp.dot(ap, ab)) + wp.select(mask[i], -HUGE_VAL, 0.0)
+    dist = wp.abs(wp.dot(ap, ab)) + wp.where(mask[i], 0.0, -HUGE_VAL)
     if dist >= c_dist:
       c_idx = i
       c_dist = dist
@@ -788,9 +788,9 @@ def _manifold_points(
   d_dist = wp.float32(-2.0 * HUGE_VAL)
   for i in range(n):
     ap = a - poly[i]
-    dist_ap = wp.abs(wp.dot(ap, bc)) + wp.select(mask[i], -HUGE_VAL, 0.0)
+    dist_ap = wp.abs(wp.dot(ap, bc)) + wp.where(mask[i], 0.0, -HUGE_VAL)
     bp = b - poly[i]
-    dist_bp = wp.abs(wp.dot(bp, bc)) + wp.select(mask[i], -HUGE_VAL, 0.0)
+    dist_bp = wp.abs(wp.dot(bp, bc)) + wp.where(mask[i], 0.0, -HUGE_VAL)
     if dist_ap + dist_bp >= d_dist:
       d_idx = i
       d_dist = dist_ap + dist_bp
@@ -834,7 +834,7 @@ def _create_contact_manifold(
     contact_pts[i] = contact_pt
     penetration_dir = incident[idx] - contact_pt
     penetration = wp.dot(penetration_dir, clipping_normal_neg)
-    dist[i] = wp.select(mask[idx], 1.0, -penetration)
+    dist[i] = wp.where(mask[idx], -penetration, 1.0)
 
   return dist, contact_pts
 
@@ -855,9 +855,9 @@ def plane_box(
   # test all corners, pick bottom 4
   for i in range(8):
     # get corner in local coordinates
-    corner.x = wp.select(i & 1, -box.size.x, box.size.x)
-    corner.y = wp.select(i & 2, -box.size.y, box.size.y)
-    corner.z = wp.select(i & 4, -box.size.z, box.size.z)
+    corner.x = wp.where(i & 1, box.size.x, -box.size.x)
+    corner.y = wp.where(i & 2, box.size.y, -box.size.y)
+    corner.z = wp.where(i & 4, box.size.z, -box.size.z)
 
     # get corner in global coordinates relative to box center
     corner = box.rot * corner
