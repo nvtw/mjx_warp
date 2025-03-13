@@ -463,6 +463,9 @@ def collision_axis_tiled(
   axis_idx: wp.int32,
 ):
   """Finds the axis of minimum separation.
+  a: Box a vertices, in frame b
+  b: Box b vertices, in frame b
+  R: rotation matrix from a to b
   Returns:
     best_axis: vec3
     best_sign: int32
