@@ -506,7 +506,6 @@ def collision_axis_tiled(
       best_sign = wp.int32(edge.best_sign)
       best_idx = wp.int32(edge.best_idx)
   return best_axis, best_sign, best_idx
-  return wp.vec3(0.0), 1, 0
 
 
 @wp.kernel(module="unique")
