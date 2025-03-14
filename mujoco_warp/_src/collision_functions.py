@@ -28,6 +28,7 @@ from .types import Data
 from .types import GeomType
 from .types import Model
 
+BOX_BOX_BLOCK_DIM = 256
 
 @wp.struct
 class GeomPlane:
@@ -380,7 +381,7 @@ def box_face_verts(box: Box, idx: wp.int32) -> mat43f:
 def get_box_axis(
   axis_idx: int,
   R: wp.mat33,
-) -> tuple[wp.vec3, bool]:
+):
   """Get the axis at index axis_idx.
   R: rotation matrix from a to b
   Axes 0-12 are face normals of boxes a & b
@@ -409,7 +410,7 @@ def get_box_axis(
 @wp.func
 def get_box_axis_support(
   axis: wp.vec3, degenerate_axis: bool, a: Box, b: Box
-) -> tuple[wp.float32, wp.int32]:
+):
   """Get the overlap (or separating distance if negative) along `axis`, and the sign."""
   axis_d = wp.vec3d(axis)
   support_a_max, support_b_max = wp.float32(-HUGE_VAL), wp.float32(-HUGE_VAL)
@@ -486,8 +487,8 @@ def collision_axis_tiled(
   face_supports_red = wp.tile_reduce(reduce_axis_support, face_supports)
   edge_supports_red = wp.tile_reduce(reduce_axis_support, edge_supports)
 
-  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(256,)))
-  edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(256,)))
+  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(BOX_BOX_BLOCK_DIM,)))
+  edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(BOX_BOX_BLOCK_DIM,)))
 
   if axis_idx > 0:  # single thread
     return wp.vec3(0.0), 0, 0
@@ -508,7 +509,7 @@ def collision_axis_tiled(
   return wp.vec3(0.0), 1, 0
 
 
-@wp.kernel
+@wp.kernel(module="unique")
 def box_box_kernel(
   m: Model,
   d: Data,
@@ -597,8 +598,7 @@ def box_box(
     kernel=box_box_kernel,
     dim=num_threads,
     inputs=[m, d, num_threads],
-    # TODO(ca): support tile sizes 21 or 32
-    block_dim=256,
+    block_dim=BOX_BOX_BLOCK_DIM,
   )
 
 

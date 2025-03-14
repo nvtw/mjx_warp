@@ -6,6 +6,7 @@ from absl.testing import absltest
 
 from .collision_functions import collision_axis_tiled, Box
 
+BOX_BLOCK_DIM = 32
 
 @wp.kernel
 def test_collision_axis_tiled_kernel(
@@ -68,7 +69,7 @@ class TestCollisionAxisTiled(absltest.TestCase):
       dim=1,
       inputs=[a, b, R],
       outputs=[best_axis, best_sign, best_idx],
-      block_dim=256,
+      block_dim=BOX_BLOCK_DIM,
     )
     expected_axis = np.array([-1, 0, 0])
     expected_sign = np.sign(best_axis.numpy().dot(expected_axis))
@@ -125,7 +126,7 @@ class TestCollisionAxisTiled(absltest.TestCase):
       dim=1,
       inputs=[a, b, R],
       outputs=[best_axis, best_sign, best_idx],
-      block_dim=256,
+      block_dim=BOX_BLOCK_DIM,
     )
     expected_axis = np.array([-1, 0, -1])
     expected_sign = np.sign(best_axis.numpy().dot(expected_axis))
