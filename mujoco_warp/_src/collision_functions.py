@@ -456,58 +456,6 @@ def face_axis_alignment(a: wp.vec3, R: wp.mat33) -> wp.int32:
   return max_idx
 
 
-@wp.func
-def collision_axis_tiled(
-  a: Box,
-  b: Box,
-  R: wp.mat33,
-  axis_idx: wp.int32,
-):
-  """Finds the axis of minimum separation.
-  a: Box a vertices, in frame b
-  b: Box b vertices, in frame b
-  R: rotation matrix from a to b
-  Returns:
-    best_axis: vec3
-    best_sign: int32
-    best_idx: int32
-  """
-  # launch tiled with block_dim=21
-  if axis_idx > 20:
-    return wp.vec3(0.0), 0, 0
-
-  axis, degenerate_axis = get_box_axis(axis_idx, R)
-  axis_dist, axis_sign = get_box_axis_support(axis, degenerate_axis, a, b)
-
-  supports = wp.tile(AxisSupport(axis_dist, wp.int8(axis_sign), wp.int8(axis_idx)))
-
-  face_supports = wp.tile_view(supports, offset=(0,), shape=(12,))
-  edge_supports = wp.tile_view(supports, offset=(12,), shape=(9,))
-
-  face_supports_red = wp.tile_reduce(reduce_axis_support, face_supports)
-  edge_supports_red = wp.tile_reduce(reduce_axis_support, edge_supports)
-
-  face = face_supports_red[0]
-  edge = edge_supports_red[0]
-
-  if axis_idx > 0:  # single thread
-    return wp.vec3(0.0), 0, 0
-
-  # choose the best separating axis
-  face_axis, _ = get_box_axis(wp.int32(face.best_idx), R)
-  best_axis = wp.vec3(face_axis)
-  best_sign = wp.int32(face.best_sign)
-  best_idx = wp.int32(face.best_idx)
-
-  if edge.best_dist < face.best_dist:
-    edge_axis, _ = get_box_axis(wp.int32(edge.best_idx), R)
-    if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
-      best_axis = edge_axis
-      best_sign = wp.int32(edge.best_sign)
-      best_idx = wp.int32(edge.best_idx)
-  return best_axis, best_sign, best_idx
-
-
 @wp.kernel(enable_backward=False)
 def box_box_kernel(
   m: Model,
@@ -541,7 +489,53 @@ def box_box_kernel(
     b = box(wp.identity(3, wp.float32), wp.vec3(0.0), b_size)
 
     # box-box implementation
-    best_axis, best_sign, best_idx = collision_axis_tiled(a, b, rot_atob, axis_idx)
+
+    # Inlined def collision_axis_tiled( a: Box, b: Box, R: wp.mat33, axis_idx: wp.int32,):
+    # Finds the axis of minimum separation.
+    # a: Box a vertices, in frame b
+    # b: Box b vertices, in frame b
+    # R: rotation matrix from a to b
+    # Returns:
+    #   best_axis: vec3
+    #   best_sign: int32
+    #   best_idx: int32
+    R = rot_atob
+        
+    # launch tiled with block_dim=21
+    if axis_idx > 20:
+      continue
+  
+    axis, degenerate_axis = get_box_axis(axis_idx, R)
+    axis_dist, axis_sign = get_box_axis_support(axis, degenerate_axis, a, b)
+  
+    supports = wp.tile(AxisSupport(axis_dist, wp.int8(axis_sign), wp.int8(axis_idx)))
+  
+    face_supports = wp.tile_view(supports, offset=(0,), shape=(12,))
+    edge_supports = wp.tile_view(supports, offset=(12,), shape=(9,))
+  
+    face_supports_red = wp.tile_reduce(reduce_axis_support, face_supports)
+    edge_supports_red = wp.tile_reduce(reduce_axis_support, edge_supports)
+  
+    face = face_supports_red[0]
+    edge = edge_supports_red[0]
+  
+    if axis_idx > 0:  # single thread
+      continue
+  
+    # choose the best separating axis
+    face_axis, _ = get_box_axis(wp.int32(face.best_idx), R)
+    best_axis = wp.vec3(face_axis)
+    best_sign = wp.int32(face.best_sign)
+    best_idx = wp.int32(face.best_idx)
+  
+    if edge.best_dist < face.best_dist:
+      edge_axis, _ = get_box_axis(wp.int32(edge.best_idx), R)
+      if wp.abs(wp.dot(face_axis, edge_axis)) < 0.99:
+        best_axis = edge_axis
+        best_sign = wp.int32(edge.best_sign)
+        best_idx = wp.int32(edge.best_idx)
+    # end inlined collision_axis_tiled
+    
     if axis_idx != 0:
       continue
 
