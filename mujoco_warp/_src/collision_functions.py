@@ -28,7 +28,7 @@ from .types import Data
 from .types import GeomType
 from .types import Model
 
-BOX_BOX_BLOCK_DIM = 256
+BOX_BOX_BLOCK_DIM = 32
 
 @wp.struct
 class GeomPlane:
@@ -487,8 +487,8 @@ def collision_axis_tiled(
   face_supports_red = wp.tile_reduce(reduce_axis_support, face_supports)
   edge_supports_red = wp.tile_reduce(reduce_axis_support, edge_supports)
 
-  face = wp.untile(wp.tile_broadcast(face_supports_red, shape=(BOX_BOX_BLOCK_DIM,)))
-  edge = wp.untile(wp.tile_broadcast(edge_supports_red, shape=(BOX_BOX_BLOCK_DIM,)))
+  face = face_supports_red[0]
+  edge = edge_supports_red[0]
 
   if axis_idx > 0:  # single thread
     return wp.vec3(0.0), 0, 0
@@ -508,7 +508,7 @@ def collision_axis_tiled(
   return best_axis, best_sign, best_idx
 
 
-@wp.kernel(module="unique")
+@wp.kernel(enable_backward=False)
 def box_box_kernel(
   m: Model,
   d: Data,
