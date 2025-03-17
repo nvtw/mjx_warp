@@ -519,7 +519,8 @@ def box_box_kernel(
 
   key = wp.static(group_key(GeomType.BOX.value, GeomType.BOX.value))
 
-  for bp_idx in range(tid, d.ncollision[0], num_kernels):
+  for bp_idx in range(tid, min(d.ncollision[0], d.nconmax), num_kernels):
+
     if d.collision_type[tid] != key:
       continue
     geoms = d.collision_pair[bp_idx]
