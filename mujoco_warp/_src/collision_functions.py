@@ -431,6 +431,7 @@ def box_box_kernel(
     best_axis = wp.vec3(face_axis)
     best_sign = wp.int32(face.best_sign)
     best_idx = wp.int32(face.best_idx)
+    best_dist = wp.float32(face.best_dist)
   
     if edge.best_dist < face.best_dist:
       edge_axis, _ = get_box_axis(wp.int32(edge.best_idx), R)
@@ -438,10 +439,13 @@ def box_box_kernel(
         best_axis = edge_axis
         best_sign = wp.int32(edge.best_sign)
         best_idx = wp.int32(edge.best_idx)
+        best_dist = wp.float32(edge.best_dist)
     # end inlined collision_axis_tiled
     
     # if axis_idx != 0:
     #   continue
+    if best_dist < 0:
+      continue
 
     # get the (reference) face most aligned with the separating axis
     a_max = face_axis_alignment(best_axis, rot_atob)
@@ -456,7 +460,6 @@ def box_box_kernel(
         rot_atob @ box_normals(a_max),
         box_face_verts(b, b_min),
         box_normals(b_min),
-        -sep_axis,
       )
     else:
       a_min = (a_max + 3) % 6
@@ -465,12 +468,14 @@ def box_box_kernel(
         box_normals(b_max),
         box_face_verts(a, a_min),
         rot_atob @ box_normals(a_min),
-        -sep_axis,
       )
 
+    # For edge contacts, we use the clipped face point, mainly for performance
+    # reasons. For small penetration, the clipped face point is roughly the edge
+    # contact point.
     if best_idx > 11:  # is_edge_contact
       idx = _argmin(dist)
-      dist = wp.vec4f(dist[best_idx], 1.0, 1.0, 1.0)
+      dist = wp.vec4f(dist[idx], 1.0, 1.0, 1.0)
       for i in range(4):
         pos[i] = pos[idx]
 
@@ -702,7 +707,6 @@ def _create_contact_manifold(
   clipping_normal: wp.vec3,
   subject_quad: mat43f,
   subject_normal: wp.vec3,
-  sep_axis: wp.vec3,
 ):
   # Clip the subject (incident) face onto the clipping (reference) face.
   # The incident points are clipped points on the subject polygon.
@@ -731,8 +735,8 @@ def _create_contact_manifold(
     contact_pt = ref[idx]
     contact_pts[i] = contact_pt
     penetration_dir = incident[idx] - contact_pt
-    penetration = wp.dot(penetration_dir, clipping_normal_neg)
-    dist[i] = wp.where(mask[idx], -penetration, 1.0)
+    penetration = wp.dot(penetration_dir, clipping_normal)
+    dist[i] = wp.where(mask[idx], penetration, 1.0)
 
   return dist, contact_pts
 
