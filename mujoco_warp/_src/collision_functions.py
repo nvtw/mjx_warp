@@ -440,8 +440,8 @@ def box_box_kernel(
         best_idx = wp.int32(edge.best_idx)
     # end inlined collision_axis_tiled
     
-    if axis_idx != 0:
-      continue
+    # if axis_idx != 0:
+    #   continue
 
     # get the (reference) face most aligned with the separating axis
     a_max = face_axis_alignment(best_axis, rot_atob)
@@ -686,7 +686,7 @@ def _manifold_points(
   d_dist = wp.float32(-2.0 * HUGE_VAL)
   for i in range(n):
     ap = a - poly[i]
-    dist_ap = wp.abs(wp.dot(ap, bc)) + wp.where(mask[i], 0.0, -HUGE_VAL)
+    dist_ap = wp.abs(wp.dot(ap, ac)) + wp.where(mask[i], 0.0, -HUGE_VAL)
     bp = b - poly[i]
     dist_bp = wp.abs(wp.dot(bp, bc)) + wp.where(mask[i], 0.0, -HUGE_VAL)
     if dist_ap + dist_bp >= d_dist:
