@@ -18,7 +18,6 @@ from typing import Any
 import mujoco
 import warp as wp
 
-from .types import NUM_GEOM_TYPES
 from .types import Data
 from .types import Model
 from .types import array2df
@@ -39,6 +38,7 @@ def mul_m(
   d: Data,
   res: wp.array(ndim=2, dtype=wp.float32),
   vec: wp.array(ndim=2, dtype=wp.float32),
+  skip: wp.array(ndim=1, dtype=bool),
 ):
   """Multiply vector by inertia matrix."""
 
@@ -47,8 +47,19 @@ def mul_m(
     def tile_mul(adr: int, size: int, tilesize: int):
       # TODO(team): speed up kernel compile time (14s on 2023 Macbook Pro)
       @kernel
-      def mul(m: Model, d: Data, leveladr: int, res: array3df, vec: array3df):
+      def mul(
+        m: Model,
+        d: Data,
+        leveladr: int,
+        res: array3df,
+        vec: array3df,
+        skip: wp.array(ndim=1, dtype=bool),
+      ):
         worldid, nodeid = wp.tid()
+
+        if skip[worldid]:
+          return
+
         dofid = m.qLD_tile[leveladr + nodeid]
         qM_tile = wp.tile_load(
           d.qM[worldid], shape=(tilesize, tilesize), offset=(dofid, dofid)
@@ -67,6 +78,7 @@ def mul_m(
           adr,
           res.reshape(res.shape + (1,)),
           vec.reshape(vec.shape + (1,)),
+          skip,
         ],
         # TODO(team): develop heuristic for block dim, or make configurable
         block_dim=32,
@@ -87,8 +99,13 @@ def mul_m(
       d: Data,
       res: wp.array(ndim=2, dtype=wp.float32),
       vec: wp.array(ndim=2, dtype=wp.float32),
+      skip: wp.array(ndim=1, dtype=bool),
     ):
       worldid, dofid = wp.tid()
+
+      if skip[worldid]:
+        return
+
       res[worldid, dofid] = d.qM[worldid, 0, m.dof_Madr[dofid]] * vec[worldid, dofid]
 
     @kernel
@@ -97,8 +114,13 @@ def mul_m(
       d: Data,
       res: wp.array(ndim=2, dtype=wp.float32),
       vec: wp.array(ndim=2, dtype=wp.float32),
+      skip: wp.array(ndim=1, dtype=bool),
     ):
       worldid, elementid = wp.tid()
+
+      if skip[worldid]:
+        return
+
       i = m.qM_mulm_i[elementid]
       j = m.qM_mulm_j[elementid]
       madr_ij = m.qM_madr_ij[elementid]
@@ -108,10 +130,10 @@ def mul_m(
       wp.atomic_add(res[worldid], i, qM * vec[worldid, j])
       wp.atomic_add(res[worldid], j, qM * vec[worldid, i])
 
-    wp.launch(_mul_m_sparse_diag, dim=(d.nworld, m.nv), inputs=[m, d, res, vec])
+    wp.launch(_mul_m_sparse_diag, dim=(d.nworld, m.nv), inputs=[m, d, res, vec, skip])
 
     wp.launch(
-      _mul_m_sparse_ij, dim=(d.nworld, m.qM_madr_ij.size), inputs=[m, d, res, vec]
+      _mul_m_sparse_ij, dim=(d.nworld, m.qM_madr_ij.size), inputs=[m, d, res, vec, skip]
     )
 
 
@@ -151,13 +173,6 @@ def xfrc_accumulate(m: Model, d: Data, qfrc: array2df):
 
 
 @wp.func
-def where(condition: bool, ret_true: Any, ret_false: Any):
-  if condition:
-    return ret_true
-  return ret_false
-
-
-@wp.func
 def bisection(x: wp.array(dtype=int), v: int, a_: int, b_: int) -> int:
   # Binary search for the largest index i such that x[i] <= v
   # x is a sorted array
@@ -175,14 +190,6 @@ def bisection(x: wp.array(dtype=int), v: int, a_: int, b_: int) -> int:
   if c != b and x[b] <= v:
     c = b
   return c
-
-
-@wp.func
-def group_key(type1: wp.int32, type2: wp.int32) -> wp.int32:
-  if type1 > type2:
-    return type2 + type1 * NUM_GEOM_TYPES
-  else:
-    return type1 + type2 * NUM_GEOM_TYPES
 
 
 @wp.func
